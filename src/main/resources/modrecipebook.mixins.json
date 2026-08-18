@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "com.minemod.modrecipebook.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "InventoryScreenMixin",
+    "CraftingScreenMixin",
+    "AbstractFurnaceScreenMixin",
+    "RecipeBookComponentMixin"
+  ],
+  "mixins": [
+    "RecipeBookMixin",
+    "ServerGamePacketListenerImplMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
