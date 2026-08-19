@@ -87,9 +87,7 @@ public class CategoryEditScreen extends Screen {
             draft.name = draft.name == null ? "" : draft.name.trim();
             RecipeCategoryConfig.Entry existing = RecipeCategoryConfig.find(draft.id);
             if (existing == null) {
-                if (RecipeCategoryConfig.all().size() < RecipeCategoryConfig.MAX) {
-                    RecipeCategoryConfig.all().add(draft);
-                }
+                RecipeCategoryConfig.all().add(draft);
             } else {
                 RecipeCategoryConfig.update(draft);
             }
@@ -161,9 +159,7 @@ public class CategoryEditScreen extends Screen {
 
     static class ItemPickScreen extends Screen {
         private static final int COLS = 9;
-        private static final int ROWS = 5;
         private static final int CELL = 18;
-        private static final int PAGE = COLS * ROWS;
         private final CategoryEditScreen parent;
         private final java.util.function.Consumer<ItemStack> onPick;
         private final List<ItemStack> all = new ArrayList<>();
@@ -172,6 +168,7 @@ public class CategoryEditScreen extends Screen {
         private Button prev;
         private Button next;
         private int page;
+        private int rows;
         private int gridLeft;
         private int gridTop;
 
@@ -191,6 +188,8 @@ public class CategoryEditScreen extends Screen {
         protected void init() {
             gridLeft = width / 2 - (COLS * CELL) / 2;
             gridTop = 48;
+            int gridBottom = height - 56;
+            rows = Math.max(1, (gridBottom - gridTop) / CELL);
             search = new EditBox(font, gridLeft, 22, COLS * CELL, 16,
                     Component.translatable("gui.modrecipebook.search"));
             search.setResponder(value -> {
@@ -199,7 +198,7 @@ public class CategoryEditScreen extends Screen {
             });
             addRenderableWidget(search);
             setInitialFocus(search);
-            int navY = gridTop + ROWS * CELL + 6;
+            int navY = height - 52;
             prev = addRenderableWidget(Button.builder(Component.literal("<"), b -> turn(-1))
                     .bounds(gridLeft, navY, 20, 20)
                     .build());
@@ -230,8 +229,12 @@ public class CategoryEditScreen extends Screen {
             refreshNav();
         }
 
+        private int pageSize() {
+            return COLS * rows;
+        }
+
         private int pageCount() {
-            return Math.max(1, (filtered.size() + PAGE - 1) / PAGE);
+            return Math.max(1, (filtered.size() + pageSize() - 1) / pageSize());
         }
 
         private void turn(int delta) {
@@ -250,7 +253,7 @@ public class CategoryEditScreen extends Screen {
         }
 
         private int indexAt(int row, int col) {
-            return page * PAGE + row * COLS + col;
+            return page * pageSize() + row * COLS + col;
         }
 
         @Override
@@ -259,9 +262,9 @@ public class CategoryEditScreen extends Screen {
             super.render(graphics, mouseX, mouseY, partialTick);
             graphics.drawCenteredString(font, title, width / 2, 8, 0xFFFFFF);
             graphics.drawCenteredString(font, Component.translatable("gui.modrecipebook.config.page", page + 1, pageCount()),
-                    width / 2, gridTop + ROWS * CELL + 11, 0xFFFFFF);
+                    width / 2, height - 47, 0xFFFFFF);
             ItemStack hovered = ItemStack.EMPTY;
-            for (int row = 0; row < ROWS; row++) {
+            for (int row = 0; row < rows; row++) {
                 for (int col = 0; col < COLS; col++) {
                     int index = indexAt(row, col);
                     if (index >= filtered.size()) {
@@ -289,7 +292,7 @@ public class CategoryEditScreen extends Screen {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (button == 0) {
-                for (int row = 0; row < ROWS; row++) {
+                for (int row = 0; row < rows; row++) {
                     for (int col = 0; col < COLS; col++) {
                         int index = indexAt(row, col);
                         if (index >= filtered.size()) {

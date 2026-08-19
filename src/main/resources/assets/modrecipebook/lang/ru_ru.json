@@ -22,7 +22,6 @@
   "gui.modrecipebook.config.icon": "Иконка",
   "gui.modrecipebook.config.name": "Название",
   "gui.modrecipebook.config.mods": "Моды в категории",
-  "gui.modrecipebook.config.max": "Максимум 5 своих категорий",
   "gui.modrecipebook.config.pick_item": "Выберите иконку",
   "gui.modrecipebook.config.page": "%s / %s"
 }

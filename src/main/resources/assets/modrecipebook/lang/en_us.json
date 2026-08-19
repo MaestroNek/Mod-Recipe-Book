@@ -22,7 +22,6 @@
   "gui.modrecipebook.config.icon": "Icon",
   "gui.modrecipebook.config.name": "Name",
   "gui.modrecipebook.config.mods": "Mods in this category",
-  "gui.modrecipebook.config.max": "Maximum of 5 custom categories",
   "gui.modrecipebook.config.pick_item": "Choose an icon",
   "gui.modrecipebook.config.page": "%s / %s"
 }

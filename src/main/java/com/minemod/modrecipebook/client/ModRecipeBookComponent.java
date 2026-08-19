@@ -57,6 +57,11 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     public static final int DETAIL_IMAGE_HEIGHT = 166;
     /** Tabs extend 31px past the panel right edge (35px wide, 4px overlap). */
     public static final int TAB_OVERHANG = 31;
+    private static final int TAB_WIDTH = 35;
+    private static final int TAB_HEIGHT = 27;
+    private static final int TAB_FIT = 6;
+    private static final int ARROW_W = 17;
+    private static final int ARROW_H = 12;
     private static final EnumMap<RecipeBookType, Boolean> OPEN = new EnumMap<>(RecipeBookType.class);
     private static final Component SEARCH_HINT = Component.translatable("gui.recipebook.search_hint")
             .withStyle(ChatFormatting.ITALIC, ChatFormatting.GRAY);
@@ -249,19 +254,70 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     }
 
     private void positionTabs() {
-        int maxVisible = 6;
+        int maxVisible = maxVisibleTabs();
         tabScroll = Math.max(0, Math.min(tabScroll, Math.max(0, tabs.size() - maxVisible)));
-        int y = bookY + 3;
+        int y = tabRowTop();
         int i = 0;
         for (int index = 0; index < tabs.size(); index++) {
             ModRecipeTabButton tab = tabs.get(index);
             boolean show = index >= tabScroll && i < maxVisible;
             tab.visible = show;
             if (show) {
-                tab.setPosition(bookX + panelWidth() - 5, y + i * 27);
+                tab.setPosition(bookX + panelWidth() - 5, y + i * TAB_HEIGHT);
                 i++;
             }
         }
+    }
+
+    private boolean tabOverflow() {
+        return tabs.size() > TAB_FIT;
+    }
+
+    private int maxVisibleTabs() {
+        return tabOverflow() ? TAB_FIT - 1 : TAB_FIT;
+    }
+
+    private int tabRowTop() {
+        return bookY + (tabOverflow() ? 18 : 3);
+    }
+
+    private boolean scrollTabs(int delta) {
+        int maxScroll = Math.max(0, tabs.size() - maxVisibleTabs());
+        int next = Math.max(0, Math.min(maxScroll, tabScroll + delta));
+        if (next == tabScroll) {
+            return tabOverflow();
+        }
+        tabScroll = next;
+        positionTabs();
+        return true;
+    }
+
+    private int tabArrowX() {
+        return bookX + panelWidth() - 5 + (TAB_WIDTH - ARROW_W) / 2;
+    }
+
+    private int tabArrowY(boolean up) {
+        if (up) {
+            return bookY + 2;
+        }
+        int shown = Math.min(maxVisibleTabs(), Math.max(0, tabs.size() - tabScroll));
+        return tabRowTop() + shown * TAB_HEIGHT;
+    }
+
+    private boolean overTabArrow(double mouseX, double mouseY, boolean up) {
+        int x = tabArrowX();
+        int y = tabArrowY(up);
+        return mouseX >= x && mouseX < x + ARROW_W && mouseY >= y && mouseY < y + ARROW_H;
+    }
+
+    private void drawTabArrow(GuiGraphics graphics, boolean up, int mouseX, int mouseY) {
+        int x = tabArrowX();
+        int y = tabArrowY(up);
+        boolean hover = overTabArrow(mouseX, mouseY, up);
+        String name = up
+                ? (hover ? "recipe_book/page_up_highlighted" : "recipe_book/page_up")
+                : (hover ? "recipe_book/page_down_highlighted" : "recipe_book/page_down");
+        graphics.blitSprite(ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, name), x, y, ARROW_W, ARROW_H);
     }
 
     public ImageButton createToggleButton(int x, int y, net.minecraft.client.gui.components.Button.OnPress onPress) {
@@ -398,6 +454,12 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
                 tab.render(graphics, mouseX, mouseY, partialTick);
             }
         }
+        if (tabScroll > 0) {
+            drawTabArrow(graphics, true, mouseX, mouseY);
+        }
+        if (tabScroll + maxVisibleTabs() < tabs.size()) {
+            drawTabArrow(graphics, false, mouseX, mouseY);
+        }
         graphics.pose().popPose();
     }
 
@@ -435,6 +497,20 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             return false;
         }
         if (button == 0) {
+            if (tabOverflow()) {
+                if (overTabArrow(mouseX, mouseY, true) && tabScroll > 0) {
+                    if (scrollTabs(-1)) {
+                        playClick();
+                    }
+                    return true;
+                }
+                if (overTabArrow(mouseX, mouseY, false) && tabScroll + maxVisibleTabs() < tabs.size()) {
+                    if (scrollTabs(1)) {
+                        playClick();
+                    }
+                    return true;
+                }
+            }
             for (ModRecipeTabButton tab : tabs) {
                 if (tab.visible && tab.mouseClicked(mouseX, mouseY, button)) {
                     selectedCategory = tab.categoryId();
@@ -712,22 +788,15 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         if (jeiDetail instanceof JeiDetailPanel jei && jei.mouseScrolled(mouseX, mouseY, delta)) {
             return true;
         }
-        if (tabs.size() <= 6) {
+        if (!tabOverflow()) {
             return false;
         }
-        boolean overTabs = mouseX >= bookX + panelWidth() - 8 && mouseX < bookX + panelWidth() + 35
+        boolean overTabs = mouseX >= bookX + panelWidth() - 8 && mouseX < bookX + panelWidth() + TAB_WIDTH
                 && mouseY >= bookY && mouseY < bookY + panelHeight();
         if (!overTabs) {
             return false;
         }
-        int maxScroll = Math.max(0, tabs.size() - 6);
-        int next = (int) Math.max(0, Math.min(maxScroll, tabScroll - (int) Math.signum(delta)));
-        if (next != tabScroll) {
-            tabScroll = next;
-            positionTabs();
-            return true;
-        }
-        return false;
+        return scrollTabs(-(int) Math.signum(delta));
     }
 
     public boolean isMouseOver(double mouseX, double mouseY) {
@@ -746,7 +815,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
                 return true;
             }
         }
-        return false;
+        return tabOverflow() && (overTabArrow(mouseX, mouseY, true) || overTabArrow(mouseX, mouseY, false));
     }
 
     public void slotClicked(Slot slot) {

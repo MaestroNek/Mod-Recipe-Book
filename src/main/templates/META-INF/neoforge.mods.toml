@@ -7,7 +7,7 @@ modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 authors="MaestroNek"
-description='''Adds a recipe book for modded recipes'''
+description='''A progression-based recipe book with items from mods. Discover items, unlock recipes, and learn mods as you play.'''
 
 [[mixins]]
 config="${mod_id}.mixins.json"

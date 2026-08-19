@@ -197,7 +197,7 @@ public final class JeiDetailPanel implements DeviceDetailPanel {
     }
 
     private int tabRowLeft() {
-        return panelX + (tabOverflow() ? 14 : 8);
+        return panelX + (tabOverflow() ? 16 : 10);
     }
 
     private int contentBottom() {

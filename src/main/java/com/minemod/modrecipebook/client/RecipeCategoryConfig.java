@@ -29,7 +29,6 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class RecipeCategoryConfig {
-    public static final int MAX = 5;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path FILE = FMLPaths.CONFIGDIR.get().resolve("modrecipebook-categories.json");
     private static final List<Entry> CATEGORIES = new ArrayList<>();
@@ -130,9 +129,6 @@ public final class RecipeCategoryConfig {
                             entry.name = "";
                         }
                         CATEGORIES.add(entry);
-                        if (CATEGORIES.size() >= MAX) {
-                            break;
-                        }
                     }
                 }
                 if (migrate) {
@@ -221,7 +217,7 @@ public final class RecipeCategoryConfig {
     }
 
     private static void ensureMinecraftCategory() {
-        if (find("minecraft") != null || CATEGORIES.size() >= MAX) {
+        if (find("minecraft") != null) {
             return;
         }
         CATEGORIES.add(0, defaultMinecraft());
