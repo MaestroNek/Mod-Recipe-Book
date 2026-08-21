@@ -44,12 +44,12 @@ public final class ModRecipeUnlocker {
         if (player.tickCount % 10 != 0) {
             return;
         }
-        checkInventory(player, true);
+        checkInventory(player, true, false);
     }
 
     private static void login(ServerPlayer player) {
         syncAll(player);
-        checkInventory(player, true);
+        checkInventory(player, true, true);
     }
 
     public static void syncAll(ServerPlayer player) {
@@ -57,7 +57,7 @@ public final class ModRecipeUnlocker {
         PacketDistributor.sendToPlayer(player, new UnlockRecipesPayload(List.copyOf(unlocked), true));
     }
 
-    public static void checkInventory(ServerPlayer player, boolean toast) {
+    public static void checkInventory(ServerPlayer player, boolean toast, boolean recheckKnown) {
         Set<ResourceLocation> unlocked = player.getData(ModRecipeBookAttachments.UNLOCKED);
         Set<ResourceLocation> knownIds = player.getData(ModRecipeBookAttachments.KNOWN_ITEMS);
         List<ResourceLocation> newly = new ArrayList<>();
@@ -74,13 +74,15 @@ public final class ModRecipeUnlocker {
                 newlyKnown.add(item);
             }
         }
-        if (newlyKnown.isEmpty()) {
+        if (!newlyKnown.isEmpty()) {
+            player.setData(ModRecipeBookAttachments.KNOWN_ITEMS, knownIds);
+        }
+        if (!recheckKnown && newlyKnown.isEmpty()) {
             return;
         }
-        player.setData(ModRecipeBookAttachments.KNOWN_ITEMS, knownIds);
         Set<Item> knownItems = knownItemSet(knownIds);
         boolean requireAll = UnlockOptions.requireAllIngredients;
-        for (Item item : newlyKnown) {
+        for (Item item : recheckKnown ? knownItems : newlyKnown) {
             for (RecipeHolder<?> holder : ModRecipeIndex.byIngredient(item)) {
                 if (requireAll && !IngredientExtractor.allIngredientsKnown(holder.value(), knownItems)) {
                     continue;
