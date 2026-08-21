@@ -62,6 +62,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     private static final int TAB_FIT = 6;
     private static final int ARROW_W = 17;
     private static final int ARROW_H = 12;
+    private static final int TAB_ARROW_GAP = 3;
     private static final EnumMap<RecipeBookType, Boolean> OPEN = new EnumMap<>(RecipeBookType.class);
     private static final Component SEARCH_HINT = Component.translatable("gui.recipebook.search_hint")
             .withStyle(ChatFormatting.ITALIC, ChatFormatting.GRAY);
@@ -278,7 +279,11 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     }
 
     private int tabRowTop() {
-        return bookY + (tabOverflow() ? 18 : 3);
+        if (!tabOverflow()) {
+            return bookY + 3;
+        }
+        int total = ARROW_H + TAB_ARROW_GAP + maxVisibleTabs() * TAB_HEIGHT + TAB_ARROW_GAP + ARROW_H;
+        return bookY + (IMAGE_HEIGHT - total) / 2 + ARROW_H + TAB_ARROW_GAP;
     }
 
     private boolean scrollTabs(int delta) {
@@ -298,10 +303,9 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
 
     private int tabArrowY(boolean up) {
         if (up) {
-            return bookY + 2;
+            return tabRowTop() - TAB_ARROW_GAP - ARROW_H + 1;
         }
-        int shown = Math.min(maxVisibleTabs(), Math.max(0, tabs.size() - tabScroll));
-        return tabRowTop() + shown * TAB_HEIGHT;
+        return tabRowTop() + maxVisibleTabs() * TAB_HEIGHT + TAB_ARROW_GAP - 2;
     }
 
     private boolean overTabArrow(double mouseX, double mouseY, boolean up) {

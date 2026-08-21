@@ -41,6 +41,15 @@ public final class IngredientExtractor {
         return list;
     }
 
+    public static boolean hasInputs(Recipe<?> recipe) {
+        if (!items(recipe).isEmpty()) {
+            return true;
+        }
+        Set<Item> fluids = new HashSet<>();
+        reflectFluidBuckets(recipe, fluids);
+        return !fluids.isEmpty();
+    }
+
     public static boolean canCraft(Recipe<?> recipe, Inventory inventory, StackedContents stacked) {
         if (inventory == null) {
             return false;

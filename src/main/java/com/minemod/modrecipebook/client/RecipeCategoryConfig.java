@@ -5,7 +5,9 @@ import com.google.gson.GsonBuilder;
 import com.minemod.modrecipebook.ModRecipeBook;
 import com.minemod.modrecipebook.recipe.ModRecipeIndex;
 import com.minemod.modrecipebook.recipe.UnlockOptions;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -203,15 +205,24 @@ public final class RecipeCategoryConfig {
 
     public static void renderItem(GuiGraphics graphics, ItemStack stack, int x, int y) {
         Item item = stack.getItem();
-        if (BROKEN_ICONS.contains(item)) {
-            graphics.fill(x, y, x + 16, y + 16, 0xFF3F3F3F);
-            return;
+        if (!BROKEN_ICONS.contains(item)) {
+            try {
+                graphics.renderItem(stack, x, y);
+                return;
+            } catch (Throwable ignored) {
+                // ponytail: Create Chromatic Compound tints via player; some BEWLR items NPE in menus
+                BROKEN_ICONS.add(item);
+            }
         }
+        renderItemIcon(graphics, stack, x, y);
+    }
+
+    private static void renderItemIcon(GuiGraphics graphics, ItemStack stack, int x, int y) {
         try {
-            graphics.renderItem(stack, x, y);
+            Minecraft minecraft = Minecraft.getInstance();
+            BakedModel model = minecraft.getItemRenderer().getModel(stack, minecraft.level, minecraft.player, 0);
+            graphics.blit(x, y, 0, 16, 16, model.getParticleIcon());
         } catch (Throwable ignored) {
-            // ponytail: Create Chromatic Compound tints via player; null on the mods menu
-            BROKEN_ICONS.add(item);
             graphics.fill(x, y, x + 16, y + 16, 0xFF3F3F3F);
         }
     }

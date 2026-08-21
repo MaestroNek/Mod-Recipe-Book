@@ -5,6 +5,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
@@ -13,15 +14,19 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class ModRecipeIndex {
     private static Map<String, List<RecipeHolder<?>>> byMod = Map.of();
     private static Map<String, List<RecipeHolder<?>>> byResultMod = Map.of();
     private static Map<Item, List<RecipeHolder<?>>> byIngredient = Map.of();
     private static Map<Item, List<RecipeHolder<?>>> byResult = Map.of();
+    private static Set<String> craftableMods = Set.of();
+    private static Set<Item> craftableItems = Set.of();
     private static List<String> modOrder = List.of();
 
     private ModRecipeIndex() {}
@@ -31,6 +36,8 @@ public final class ModRecipeIndex {
         Map<String, List<RecipeHolder<?>>> resultMods = new LinkedHashMap<>();
         Map<Item, List<RecipeHolder<?>>> ingredients = new HashMap<>();
         Map<Item, List<RecipeHolder<?>>> results = new HashMap<>();
+        Set<String> craftable = new HashSet<>();
+        Set<Item> craftableResults = new HashSet<>();
 
         for (RecipeHolder<?> holder : manager.getRecipes()) {
             Recipe<?> recipe = holder.value();
@@ -50,6 +57,10 @@ public final class ModRecipeIndex {
                 String itemNs = BuiltInRegistries.ITEM.getKey(result.getItem()).getNamespace();
                 if (!"neoforge".equals(itemNs) && !"modrecipebook".equals(itemNs)) {
                     resultMods.computeIfAbsent(itemNs, ns -> new ArrayList<>()).add(holder);
+                    if (IngredientExtractor.hasInputs(recipe) && result.getItem() != Items.BARRIER) {
+                        craftable.add(itemNs);
+                        craftableResults.add(result.getItem());
+                    }
                 }
             }
         }
@@ -60,6 +71,8 @@ public final class ModRecipeIndex {
         byResultMod = Map.copyOf(resultMods);
         byIngredient = Map.copyOf(ingredients);
         byResult = Map.copyOf(results);
+        craftableMods = Set.copyOf(craftable);
+        craftableItems = Set.copyOf(craftableResults);
         List<String> order = new ArrayList<>(mods.keySet());
         Collections.sort(order);
         modOrder = List.copyOf(order);
@@ -75,6 +88,18 @@ public final class ModRecipeIndex {
 
     public static List<RecipeHolder<?>> recipesByItemMod(String namespace) {
         return byResultMod.getOrDefault(namespace, List.of());
+    }
+
+    public static boolean hasCraftableItem(String namespace) {
+        return craftableMods.contains(namespace);
+    }
+
+    public static boolean isCraftableResult(Item item) {
+        return craftableItems.contains(item);
+    }
+
+    public static boolean recipesIndexed() {
+        return !byResult.isEmpty();
     }
 
     public static Collection<List<RecipeHolder<?>>> allByMod() {
