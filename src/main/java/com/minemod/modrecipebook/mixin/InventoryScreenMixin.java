@@ -34,6 +34,9 @@ public abstract class InventoryScreenMixin extends EffectRenderingInventoryScree
     @Unique
     private ImageButton modrecipebook$button;
 
+    @Unique
+    private VanillaRecipeBookGuard.Layout modrecipebook$layout;
+
     public InventoryScreenMixin(InventoryMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
     }
@@ -51,6 +54,7 @@ public abstract class InventoryScreenMixin extends EffectRenderingInventoryScree
             this.leftPos = this.modrecipebook$book.updateScreenPosition(this.width, this.imageWidth);
             this.modrecipebook$book.syncLayout();
         }
+        this.modrecipebook$layout = VanillaRecipeBookGuard.stackRight(104, this.height / 2 - 22 - this.topPos);
         this.modrecipebook$button = this.addRenderableWidget(this.modrecipebook$book.createToggleButton(
                 this.leftPos + 126, this.height / 2 - 22, button -> this.modrecipebook$toggle()));
         this.modrecipebook$repositionButtons();
@@ -69,9 +73,8 @@ public abstract class InventoryScreenMixin extends EffectRenderingInventoryScree
 
     @Unique
     private void modrecipebook$repositionButtons() {
-        int y = this.height / 2 - 22;
         VanillaRecipeBookGuard.apply(this.recipeBookComponent, this.modrecipebook$button, this.renderables,
-                this.leftPos + 104, y, this.leftPos + 126, y);
+                this.modrecipebook$layout, this.leftPos, this.topPos);
         if (RecipeCategoryConfig.hideVanillaBook() && !this.modrecipebook$book.isVisible()) {
             this.leftPos = this.recipeBookComponent.updateScreenPosition(this.width, this.imageWidth);
         }
@@ -86,6 +89,11 @@ public abstract class InventoryScreenMixin extends EffectRenderingInventoryScree
             this.leftPos = this.recipeBookComponent.updateScreenPosition(this.width, this.imageWidth);
             this.modrecipebook$repositionButtons();
         }
+    }
+
+    @Inject(method = "render", at = @At("HEAD"))
+    private void modrecipebook$beforeRender(GuiGraphics graphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
+        this.modrecipebook$repositionButtons();
     }
 
     @Inject(method = "render", at = @At("TAIL"))
