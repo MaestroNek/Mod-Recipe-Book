@@ -1,6 +1,7 @@
 package com.minemod.modrecipebook.client;
 
 import com.minemod.modrecipebook.recipe.ModRecipeIndex;
+import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -40,6 +41,8 @@ public class CategoryEditScreen extends Screen {
     private static final int LABEL_Y = 72;
     private static final int LIST_TOP = 86;
     private static final int ICON_BTN_W = 90;
+    private static final int SEARCH_W = 110;
+    private static final int SEARCH_H = 16;
     private static final int LIST_BG = 0x80000000;
     private static final int UNASSIGNED = 0xE8C84A;
     private static final float PREVIEW_PX_PER_MS = 0.02f;
@@ -56,6 +59,8 @@ public class CategoryEditScreen extends Screen {
     private final Screen parent;
     private final RecipeCategoryConfig.Entry draft;
     private final List<String> catalog = new ArrayList<>();
+    private final List<String> shown = new ArrayList<>();
+    private String filter = "";
     private final Map<String, List<ItemStack>> itemsByMod = new LinkedHashMap<>();
     private final Map<String, ItemStack> modIcon = new HashMap<>();
     private int modsLeft;
@@ -108,6 +113,7 @@ public class CategoryEditScreen extends Screen {
         for (String id : catalog) {
             modIcon.putIfAbsent(id, fallbackIcon.get(id));
         }
+        applyFilter();
     }
 
     private static Set<String> namespacesWithItemsOrBlocks() {
@@ -139,10 +145,24 @@ public class CategoryEditScreen extends Screen {
         EditBox nameBox = new EditBox(font, nameLeft, HEADER_Y, nameRight - nameLeft, 20,
                 Component.translatable("gui.modrecipebook.config.name"));
         nameBox.setMaxLength(40);
-        nameBox.setHint(Component.translatable("gui.modrecipebook.config.name"));
+        nameBox.setHint(Component.translatable("gui.modrecipebook.config.name")
+                .withStyle(ChatFormatting.ITALIC, ChatFormatting.GRAY));
         nameBox.setValue(draft.name == null ? "" : draft.name);
         nameBox.setResponder(value -> draft.name = value);
         addRenderableWidget(nameBox);
+        int searchW = Math.min(SEARCH_W, Math.max(70,
+                LEFT_W - font.width(Component.translatable("gui.modrecipebook.config.mods")) - 8));
+        EditBox search = new EditBox(font, modsLeft + LEFT_W - searchW, LABEL_Y - 3, searchW, SEARCH_H,
+                Component.translatable("gui.modrecipebook.search"));
+        search.setHint(Component.translatable("gui.modrecipebook.search")
+                .withStyle(ChatFormatting.ITALIC, ChatFormatting.GRAY));
+        search.setValue(filter);
+        search.setResponder(value -> {
+            filter = value;
+            modScroll = 0;
+            applyFilter();
+        });
+        addRenderableWidget(search);
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
                 .bounds(width / 2 - 154, height - 28, 150, 20)
                 .build());
@@ -189,10 +209,10 @@ public class CategoryEditScreen extends Screen {
         Component markTip = null;
         for (int i = 0; i < visibleRows; i++) {
             int index = modScroll + i;
-            if (index >= catalog.size()) {
+            if (index >= shown.size()) {
                 break;
             }
-            String modId = catalog.get(index);
+            String modId = shown.get(index);
             int y = top + i * ROW;
             boolean on = draft.mods.contains(modId);
             boolean hover = mouseX >= left && mouseX < barX && mouseY >= y && mouseY < y + ROW;
@@ -308,10 +328,10 @@ public class CategoryEditScreen extends Screen {
             return;
         }
         int index = modScroll + (mouseY - innerTop()) / ROW;
-        if (index < 0 || index >= catalog.size()) {
+        if (index < 0 || index >= shown.size()) {
             return;
         }
-        String next = catalog.get(index);
+        String next = shown.get(index);
         if (!next.equals(previewMod)) {
             previewMod = next;
             previewScroll = 0;
@@ -335,8 +355,8 @@ public class CategoryEditScreen extends Screen {
         }
         if (button == 0 && overMods(mouseX, mouseY)) {
             int index = modScroll + (int) ((mouseY - innerTop()) / ROW);
-            if (index >= 0 && index < catalog.size()) {
-                String modId = catalog.get(index);
+            if (index >= 0 && index < shown.size()) {
+                String modId = shown.get(index);
                 if (draft.mods.contains(modId)) {
                     draft.mods.remove(modId);
                 } else {
@@ -417,8 +437,21 @@ public class CategoryEditScreen extends Screen {
         return Math.max(1, visibleRows * ROW);
     }
 
+    private void applyFilter() {
+        shown.clear();
+        String q = filter.toLowerCase(Locale.ROOT);
+        for (String id : catalog) {
+            if (q.isEmpty()
+                    || id.toLowerCase(Locale.ROOT).contains(q)
+                    || RecipeCategoryConfig.modName(id).toLowerCase(Locale.ROOT).contains(q)) {
+                shown.add(id);
+            }
+        }
+        clampScroll();
+    }
+
     private int maxScroll() {
-        return Math.max(0, catalog.size() - visibleRows);
+        return Math.max(0, shown.size() - visibleRows);
     }
 
     private void clampScroll() {
@@ -426,7 +459,7 @@ public class CategoryEditScreen extends Screen {
     }
 
     private int thumbHeight() {
-        int total = catalog.size();
+        int total = shown.size();
         if (total <= visibleRows) {
             return trackHeight();
         }

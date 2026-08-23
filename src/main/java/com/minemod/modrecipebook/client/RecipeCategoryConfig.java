@@ -5,8 +5,11 @@ import com.google.gson.GsonBuilder;
 import com.minemod.modrecipebook.ModRecipeBook;
 import com.minemod.modrecipebook.recipe.ModRecipeIndex;
 import com.minemod.modrecipebook.recipe.UnlockOptions;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -25,8 +28,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -38,6 +43,7 @@ public final class RecipeCategoryConfig {
     private static boolean hideJei = true;
     private static boolean hideVanillaBook = true;
     private static boolean requireAllIngredients = true;
+    private static final Map<String, Integer> BOOK_BUTTON_LAYOUT = new HashMap<>();
     private static final int DEFAULTS = 1;
 
     private RecipeCategoryConfig() {}
@@ -73,6 +79,20 @@ public final class RecipeCategoryConfig {
         save();
     }
 
+    public static int bookButtonLayout(String screenId) {
+        return Math.floorMod(BOOK_BUTTON_LAYOUT.getOrDefault(screenId, 0), VanillaRecipeBookGuard.LAYOUT_COUNT);
+    }
+
+    public static void setBookButtonLayout(String screenId, int mode) {
+        mode = Math.floorMod(mode, VanillaRecipeBookGuard.LAYOUT_COUNT);
+        if (mode == 0) {
+            BOOK_BUTTON_LAYOUT.remove(screenId);
+        } else {
+            BOOK_BUTTON_LAYOUT.put(screenId, mode);
+        }
+        save();
+    }
+
     public static boolean requireAllIngredients() {
         return requireAllIngredients;
     }
@@ -85,6 +105,7 @@ public final class RecipeCategoryConfig {
 
     public static void load() {
         CATEGORIES.clear();
+        BOOK_BUTTON_LAYOUT.clear();
         hideJei = true;
         hideVanillaBook = true;
         requireAllIngredients = true;
@@ -112,6 +133,20 @@ public final class RecipeCategoryConfig {
                 }
                 if (data.requireAllIngredients != null) {
                     requireAllIngredients = data.requireAllIngredients;
+                }
+                if (data.bookButtonLayout != null) {
+                    for (Map.Entry<String, Integer> entry : data.bookButtonLayout.entrySet()) {
+                        if (entry.getKey() != null && entry.getValue() != null) {
+                            BOOK_BUTTON_LAYOUT.put(entry.getKey(),
+                                    Math.floorMod(entry.getValue(), VanillaRecipeBookGuard.LAYOUT_COUNT));
+                        }
+                    }
+                } else if (data.bookButtonsHorizontal != null) {
+                    for (Map.Entry<String, Boolean> entry : data.bookButtonsHorizontal.entrySet()) {
+                        if (entry.getKey() != null && Boolean.TRUE.equals(entry.getValue())) {
+                            BOOK_BUTTON_LAYOUT.put(entry.getKey(), 3);
+                        }
+                    }
                 }
                 if (data.categories != null) {
                     for (Entry entry : data.categories) {
@@ -153,6 +188,7 @@ public final class RecipeCategoryConfig {
                 data.hideJei = hideJei;
                 data.hideVanillaBook = hideVanillaBook;
                 data.requireAllIngredients = requireAllIngredients;
+                data.bookButtonLayout = BOOK_BUTTON_LAYOUT;
                 data.defaults = DEFAULTS;
                 data.categories = CATEGORIES;
                 GSON.toJson(data, writer);
@@ -203,6 +239,22 @@ public final class RecipeCategoryConfig {
                 .orElse(modId);
     }
 
+    public static void renderItemTooltip(GuiGraphics graphics, Font font, ItemStack stack, int mouseX, int mouseY) {
+        List<Component> lines = new ArrayList<>(Screen.getTooltipFromItem(Minecraft.getInstance(), stack));
+        String name = modName(BuiltInRegistries.ITEM.getKey(stack.getItem()).getNamespace());
+        boolean known = false;
+        for (Component line : lines) {
+            if (name.equals(line.getString())) {
+                known = true;
+                break;
+            }
+        }
+        if (!known) {
+            lines.add(Component.literal(name).withStyle(ChatFormatting.BLUE, ChatFormatting.ITALIC));
+        }
+        graphics.renderTooltip(font, lines, stack.getTooltipImage(), stack, mouseX, mouseY);
+    }
+
     public static void renderItem(GuiGraphics graphics, ItemStack stack, int x, int y) {
         Item item = stack.getItem();
         if (!BROKEN_ICONS.contains(item)) {
@@ -247,6 +299,8 @@ public final class RecipeCategoryConfig {
         Boolean hideJei;
         Boolean hideVanillaBook;
         Boolean requireAllIngredients;
+        Map<String, Boolean> bookButtonsHorizontal;
+        Map<String, Integer> bookButtonLayout;
         Integer defaults;
         List<Entry> categories;
     }

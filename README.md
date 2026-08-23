@@ -21,7 +21,7 @@ Recipe layouts come from [JEI](https://github.com/mezz/JustEnoughItems).
 
 ## Install
 
-Put `modrecipebook-1.1.0.jar` in the `mods` folder together with NeoForge and JEI.
+Put `modrecipebook-x.x.x.jar` in the `mods` folder together with NeoForge and JEI.
 
 ## License
 

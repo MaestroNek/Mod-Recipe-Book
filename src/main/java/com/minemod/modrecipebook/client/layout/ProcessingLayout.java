@@ -1,5 +1,6 @@
 package com.minemod.modrecipebook.client.layout;
 
+import com.minemod.modrecipebook.client.RecipeCategoryConfig;
 import com.minemod.modrecipebook.recipe.IngredientExtractor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -128,7 +129,7 @@ public final class ProcessingLayout implements RecipeLayout {
 
     private static void blockTooltip(GuiGraphics graphics, ItemStack stack, int x, int y, int mouseX, int mouseY) {
         if (!stack.isEmpty() && mouseX >= x && mouseY >= y && mouseX < x + 32 && mouseY < y + 32) {
-            graphics.renderTooltip(Minecraft.getInstance().font, stack, mouseX, mouseY);
+            RecipeCategoryConfig.renderItemTooltip(graphics, Minecraft.getInstance().font, stack, mouseX, mouseY);
         }
     }
 

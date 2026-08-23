@@ -11,6 +11,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.components.StateSwitchingButton;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.WidgetSprites;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.Rect2i;
@@ -51,6 +52,10 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/button"),
             ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/button_highlighted")
     );
+    public static final WidgetSprites ROTATE_SPRITES = new WidgetSprites(
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/rotate"),
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/rotate_highlighted")
+    );
     public static final int IMAGE_WIDTH = 147;
     public static final int IMAGE_HEIGHT = 166;
     public static final int DETAIL_IMAGE_WIDTH = 177;
@@ -64,6 +69,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     private static final int ARROW_H = 12;
     private static final int TAB_ARROW_GAP = 3;
     private static final EnumMap<RecipeBookType, Boolean> OPEN = new EnumMap<>(RecipeBookType.class);
+    private static final EnumMap<RecipeBookType, Boolean> FILTER = new EnumMap<>(RecipeBookType.class);
     private static final Component SEARCH_HINT = Component.translatable("gui.recipebook.search_hint")
             .withStyle(ChatFormatting.ITALIC, ChatFormatting.GRAY);
 
@@ -106,6 +112,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         this.screen = screen;
         this.vanilla = vanilla;
         this.visible = OPEN.getOrDefault(menu.getRecipeBookType(), false);
+        this.filteringCraftable = FILTER.getOrDefault(menu.getRecipeBookType(), false);
         if (this.visible && vanilla != null && vanilla.isVisible()) {
             vanilla.toggleVisibility();
         }
@@ -334,6 +341,13 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         };
     }
 
+    public ImageButton createRotateButton(int x, int y, net.minecraft.client.gui.components.Button.OnPress onPress) {
+        ImageButton button = new ImageButton(x, y, 11, 11, ROTATE_SPRITES, onPress,
+                Component.translatable("gui.modrecipebook.rotate_books"));
+        button.setTooltip(Tooltip.create(Component.translatable("gui.modrecipebook.rotate_books")));
+        return button;
+    }
+
     public void toggleVisibility() {
         setVisible(!visible);
     }
@@ -373,6 +387,10 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
 
     public Rect2i overlayExclusion() {
         return new Rect2i(bookX, bookY, panelWidth() + TAB_OVERHANG, Math.max(IMAGE_HEIGHT, panelHeight()));
+    }
+
+    public void placeRotateButton(ImageButton rotate) {
+        rotate.setPosition(bookX, bookY + Math.max(IMAGE_HEIGHT, panelHeight()) + 2);
     }
 
     public void tick() {
@@ -589,6 +607,9 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         if (filterButton.mouseClicked(mouseX, mouseY, button)) {
             filteringCraftable = !filteringCraftable;
             filterButton.setStateTriggered(filteringCraftable);
+            if (menu != null) {
+                FILTER.put(menu.getRecipeBookType(), filteringCraftable);
+            }
             updateCollections(true);
             return true;
         }
@@ -727,6 +748,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             case FURNACE -> type == RecipeType.SMELTING;
             case BLAST_FURNACE -> type == RecipeType.BLASTING;
             case SMOKER -> type == RecipeType.SMOKING;
+            default -> true;
         };
         return fits && recipe.value().canCraftInDimensions(menu.getGridWidth(), menu.getGridHeight());
     }
@@ -792,15 +814,16 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         if (jeiDetail instanceof JeiDetailPanel jei && jei.mouseScrolled(mouseX, mouseY, delta)) {
             return true;
         }
-        if (!tabOverflow()) {
-            return false;
-        }
         boolean overTabs = mouseX >= bookX + panelWidth() - 8 && mouseX < bookX + panelWidth() + TAB_WIDTH
                 && mouseY >= bookY && mouseY < bookY + panelHeight();
-        if (!overTabs) {
-            return false;
+        if (overTabs && tabOverflow()) {
+            return scrollTabs(-(int) Math.signum(delta));
         }
-        return scrollTabs(-(int) Math.signum(delta));
+        if (jeiDetail == null && mouseX >= bookX && mouseY >= bookY
+                && mouseX < bookX + panelWidth() && mouseY < bookY + panelHeight()) {
+            return page.mouseScrolled(delta);
+        }
+        return false;
     }
 
     public boolean isMouseOver(double mouseX, double mouseY) {

@@ -1,5 +1,6 @@
 package com.minemod.modrecipebook.client.layout;
 
+import com.minemod.modrecipebook.client.RecipeCategoryConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -49,7 +50,7 @@ public final class LayoutItems {
 
     public static void tooltip(GuiGraphics graphics, ItemStack stack, int x, int y, int mouseX, int mouseY) {
         if (!stack.isEmpty() && hover(x, y, mouseX, mouseY)) {
-            graphics.renderTooltip(Minecraft.getInstance().font, stack, mouseX, mouseY);
+            RecipeCategoryConfig.renderItemTooltip(graphics, Minecraft.getInstance().font, stack, mouseX, mouseY);
         }
     }
 

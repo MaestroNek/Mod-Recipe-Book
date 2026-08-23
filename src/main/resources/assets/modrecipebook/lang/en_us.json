@@ -1,5 +1,6 @@
 {
   "gui.modrecipebook.toggle": "Mod Recipe Book",
+  "gui.modrecipebook.rotate_books": "Change recipe book button layout in this window",
   "gui.modrecipebook.tab.all": "All Recipes",
   "gui.modrecipebook.filter.all": "Showing All",
   "gui.modrecipebook.filter.craftable": "Show Craftable",

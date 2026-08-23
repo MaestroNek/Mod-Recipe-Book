@@ -73,7 +73,7 @@ public abstract class InventoryScreenMixin extends EffectRenderingInventoryScree
 
     @Unique
     private void modrecipebook$repositionButtons() {
-        VanillaRecipeBookGuard.apply(this.recipeBookComponent, this.modrecipebook$button, this.renderables,
+        VanillaRecipeBookGuard.apply(this.recipeBookComponent, this.modrecipebook$button, this.children(),
                 this.modrecipebook$layout, this.leftPos, this.topPos);
         if (RecipeCategoryConfig.hideVanillaBook() && !this.modrecipebook$book.isVisible()) {
             this.leftPos = this.recipeBookComponent.updateScreenPosition(this.width, this.imageWidth);

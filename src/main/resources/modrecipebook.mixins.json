@@ -7,7 +7,11 @@
     "InventoryScreenMixin",
     "CraftingScreenMixin",
     "AbstractFurnaceScreenMixin",
-    "RecipeBookComponentMixin"
+    "AbstractContainerScreenMixin",
+    "AbstractContainerScreenAccessor",
+    "ScreenMixin",
+    "RecipeBookComponentMixin",
+    "RecipeToastMixin"
   ],
   "mixins": [
     "RecipeBookMixin",

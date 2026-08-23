@@ -38,6 +38,7 @@ public final class ModRecipeIndex {
         Map<Item, List<RecipeHolder<?>>> results = new HashMap<>();
         Set<String> craftable = new HashSet<>();
         Set<Item> craftableResults = new HashSet<>();
+        Set<String> emptyResultMods = new HashSet<>();
 
         for (RecipeHolder<?> holder : manager.getRecipes()) {
             Recipe<?> recipe = holder.value();
@@ -46,21 +47,39 @@ public final class ModRecipeIndex {
                 continue;
             }
             ResourceLocation id = holder.id();
-            if (!"minecraft".equals(id.getNamespace())) {
-                mods.computeIfAbsent(id.getNamespace(), ns -> new ArrayList<>()).add(holder);
+            String recipeNs = id.getNamespace();
+            if (!"minecraft".equals(recipeNs)) {
+                mods.computeIfAbsent(recipeNs, ns -> new ArrayList<>()).add(holder);
             }
             for (Item item : IngredientExtractor.unlockItems(recipe, access)) {
                 ingredients.computeIfAbsent(item, k -> new ArrayList<>()).add(holder);
+            }
+            boolean usable = IngredientExtractor.hasInputs(recipe)
+                    && (result.isEmpty() || result.getItem() != Items.BARRIER);
+            if (usable && !"minecraft".equals(recipeNs) && !"neoforge".equals(recipeNs)
+                    && !"modrecipebook".equals(recipeNs)) {
+                craftable.add(recipeNs);
+                if (result.isEmpty()) {
+                    emptyResultMods.add(recipeNs);
+                    resultMods.computeIfAbsent(recipeNs, ns -> new ArrayList<>()).add(holder);
+                }
             }
             if (!result.isEmpty()) {
                 results.computeIfAbsent(result.getItem(), item -> new ArrayList<>()).add(holder);
                 String itemNs = BuiltInRegistries.ITEM.getKey(result.getItem()).getNamespace();
                 if (!"neoforge".equals(itemNs) && !"modrecipebook".equals(itemNs)) {
                     resultMods.computeIfAbsent(itemNs, ns -> new ArrayList<>()).add(holder);
-                    if (IngredientExtractor.hasInputs(recipe) && result.getItem() != Items.BARRIER) {
+                    if (usable) {
                         craftable.add(itemNs);
                         craftableResults.add(result.getItem());
                     }
+                }
+            }
+        }
+        if (!emptyResultMods.isEmpty()) {
+            for (Item item : BuiltInRegistries.ITEM) {
+                if (emptyResultMods.contains(BuiltInRegistries.ITEM.getKey(item).getNamespace())) {
+                    craftableResults.add(item);
                 }
             }
         }

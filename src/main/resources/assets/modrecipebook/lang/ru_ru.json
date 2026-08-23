@@ -1,5 +1,6 @@
 {
   "gui.modrecipebook.toggle": "Книга рецептов модов",
+  "gui.modrecipebook.rotate_books": "Изменить положение книг рецептов в этом окне",
   "gui.modrecipebook.tab.all": "Все рецепты",
   "gui.modrecipebook.filter.all": "Показаны все",
   "gui.modrecipebook.filter.craftable": "Только доступные",

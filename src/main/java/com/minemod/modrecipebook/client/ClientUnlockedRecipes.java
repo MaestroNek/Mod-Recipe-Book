@@ -1,11 +1,11 @@
 package com.minemod.modrecipebook.client;
 
 import com.minemod.modrecipebook.net.UnlockRecipesPayload;
+import com.minemod.modrecipebook.recipe.IngredientExtractor;
 import com.minemod.modrecipebook.recipe.ModRecipeIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.toasts.RecipeToast;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.crafting.RecipeHolder;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -17,11 +17,16 @@ import java.util.Set;
 @EventBusSubscriber(modid = com.minemod.modrecipebook.ModRecipeBook.MODID, value = Dist.CLIENT)
 public final class ClientUnlockedRecipes {
     private static final Set<ResourceLocation> UNLOCKED = new HashSet<>();
+    private static boolean ownToast;
 
     private ClientUnlockedRecipes() {}
 
     public static boolean isUnlocked(ResourceLocation id) {
         return UNLOCKED.contains(id);
+    }
+
+    public static boolean showingOwnToast() {
+        return ownToast;
     }
 
     public static void apply(UnlockRecipesPayload payload) {
@@ -38,11 +43,23 @@ public final class ClientUnlockedRecipes {
                 continue;
             }
             added = true;
-            if (minecraft.level == null || "minecraft".equals(id.getNamespace())) {
+            if (minecraft.level == null) {
                 continue;
             }
-            minecraft.level.getRecipeManager().byKey(id).ifPresent(holder ->
-                    RecipeToast.addOrUpdate(minecraft.getToasts(), (RecipeHolder<?>) holder));
+            if ("minecraft".equals(id.getNamespace()) && !RecipeCategoryConfig.hideVanillaBook()) {
+                continue;
+            }
+            minecraft.level.getRecipeManager().byKey(id).ifPresent(holder -> {
+                if (IngredientExtractor.result(holder.value(), minecraft.level.registryAccess()).isEmpty()) {
+                    return;
+                }
+                ownToast = true;
+                try {
+                    RecipeToast.addOrUpdate(minecraft.getToasts(), holder);
+                } finally {
+                    ownToast = false;
+                }
+            });
         }
         if (added) {
             refreshOpenBook();
@@ -50,9 +67,9 @@ public final class ClientUnlockedRecipes {
     }
 
     private static void refreshOpenBook() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.screen instanceof ModRecipeBookAccess access) {
-            access.modrecipebook$component().recipesUpdated();
+        ModRecipeBookComponent book = ModRecipeBookScreens.component(Minecraft.getInstance().screen);
+        if (book != null) {
+            book.recipesUpdated();
         }
     }
 
@@ -62,5 +79,6 @@ public final class ClientUnlockedRecipes {
         if (minecraft.level != null) {
             ModRecipeIndex.rebuild(minecraft.level.getRecipeManager(), minecraft.level.registryAccess());
         }
+        refreshOpenBook();
     }
 }

@@ -119,10 +119,22 @@ public class ModRecipePage {
         }
         for (ModRecipeButton button : buttons) {
             if (button.visible && button.isHovered() && button.group() != null) {
-                graphics.renderTooltip(minecraft.font, button.group().result(), mouseX, mouseY);
+                RecipeCategoryConfig.renderItemTooltip(graphics, minecraft.font, button.group().result(), mouseX, mouseY);
                 return;
             }
         }
+    }
+
+    public boolean mouseScrolled(double delta) {
+        if (lastPage <= 0) {
+            return false;
+        }
+        int next = Math.max(0, Math.min(lastPage, page - (int) Math.signum(delta)));
+        if (next != page) {
+            page = next;
+            updateButtons();
+        }
+        return true;
     }
 
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
