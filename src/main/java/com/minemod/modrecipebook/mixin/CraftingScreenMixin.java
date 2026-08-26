@@ -97,13 +97,6 @@ public abstract class CraftingScreenMixin extends AbstractContainerScreen<Crafti
         this.modrecipebook$repositionButtons();
     }
 
-    @Inject(method = "render", at = @At("TAIL"))
-    private void modrecipebook$render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
-        this.modrecipebook$book.render(graphics, mouseX, mouseY, partialTick);
-        this.modrecipebook$book.renderGhostRecipe(graphics, this.leftPos, this.topPos, partialTick);
-        this.modrecipebook$book.renderTooltip(graphics, mouseX, mouseY);
-    }
-
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void modrecipebook$mouseClicked(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
         if (this.modrecipebook$book.mouseClicked(mouseX, mouseY, button)) {

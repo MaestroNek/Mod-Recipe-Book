@@ -105,15 +105,20 @@ public final class ModRecipeBookScreens {
     }
 
     public static void render(Screen screen, GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        Host host = host(screen);
-        if (host == null) {
+        if (!(screen instanceof AbstractContainerScreen<?> container)) {
             return;
         }
-        AbstractContainerScreen<?> container = (AbstractContainerScreen<?>) screen;
-        reposition(container, host);
-        host.book.render(graphics, mouseX, mouseY, partialTick);
-        host.book.renderGhostRecipe(graphics, container.getGuiLeft(), container.getGuiTop(), partialTick);
-        host.book.renderTooltip(graphics, mouseX, mouseY);
+        ModRecipeBookComponent book = component(screen);
+        if (book == null) {
+            return;
+        }
+        Host host = HOSTS.get(container);
+        if (host != null) {
+            reposition(container, host);
+        }
+        book.render(graphics, mouseX, mouseY, partialTick);
+        book.renderGhostRecipe(graphics, container.getGuiLeft(), container.getGuiTop(), partialTick);
+        book.renderTooltip(graphics, mouseX, mouseY);
     }
 
     public static boolean mouseClicked(Screen screen, double mouseX, double mouseY, int button) {

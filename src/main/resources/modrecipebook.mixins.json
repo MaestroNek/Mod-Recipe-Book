@@ -10,7 +10,6 @@
     "AbstractContainerScreenMixin",
     "AbstractContainerScreenAccessor",
     "BrewingStandScreenMixin",
-    "ScreenMixin",
     "RecipeBookComponentMixin",
     "RecipeToastMixin"
   ],
