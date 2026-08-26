@@ -29,5 +29,6 @@
   "gui.modrecipebook.config.items.empty": "No items",
   "gui.modrecipebook.config.unassigned": "Not in any category",
   "gui.modrecipebook.config.pick_item": "Choose an icon",
-  "gui.modrecipebook.config.page": "%s / %s"
+  "gui.modrecipebook.config.page": "%s / %s",
+  "gui.modrecipebook.layout.brewing": "Brewing"
 }

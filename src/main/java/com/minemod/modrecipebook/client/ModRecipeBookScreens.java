@@ -8,6 +8,8 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
 import net.minecraft.client.gui.screens.recipebook.RecipeUpdateListener;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.BrewingStandMenu;
 import net.minecraft.world.inventory.RecipeBookMenu;
 import net.minecraft.world.inventory.Slot;
 
@@ -35,7 +37,9 @@ public final class ModRecipeBookScreens {
         if (screen instanceof ModRecipeBookAccess) {
             return List.of();
         }
-        if (!(screen.getMenu() instanceof RecipeBookMenu<?, ?> menu)) {
+        AbstractContainerMenu menu = screen.getMenu();
+        boolean brewing = menu instanceof BrewingStandMenu;
+        if (!(menu instanceof RecipeBookMenu<?, ?>) && !brewing) {
             return List.of();
         }
         Host host = HOSTS.computeIfAbsent(screen, s -> new Host());
@@ -46,19 +50,33 @@ public final class ModRecipeBookScreens {
         boolean narrow = screen.width < 379;
         host.book.init(screen.width, screen.height, Minecraft.getInstance(), narrow, menu, screen, vanilla);
         ImageButton vanillaButton = VanillaRecipeBookGuard.findRecipeButton(screen, null);
-        int relX = vanillaButton == null ? 5 : vanillaButton.getX() - screen.getGuiLeft();
-        int relY = vanillaButton == null ? 22 : vanillaButton.getY() - screen.getGuiTop();
+        int relX;
+        int relY;
+        if (brewing) {
+            relX = 15;
+            relY = screen.getYSize() / 2 - 44;
+        } else if (vanillaButton == null) {
+            relX = 5;
+            relY = 22;
+        } else {
+            relX = vanillaButton.getX() - screen.getGuiLeft();
+            relY = vanillaButton.getY() - screen.getGuiTop();
+        }
         host.layout = VanillaRecipeBookGuard.forMode(relX, relY, RecipeCategoryConfig.bookButtonLayout(screenId(screen)));
         host.button = host.book.createToggleButton(
                 screen.getGuiLeft() + relX, screen.getGuiTop() + relY, b -> toggle(screen, host));
-        host.rotate = host.book.createRotateButton(
-                screen.getGuiLeft() + relX, screen.getGuiTop() + relY + 20, b -> toggleStack(screen, host));
+        if (brewing) {
+            host.rotate = null;
+        } else {
+            host.rotate = host.book.createRotateButton(
+                    screen.getGuiLeft() + relX, screen.getGuiTop() + relY + 20, b -> toggleStack(screen, host));
+        }
         if (host.book.isVisible()) {
             setLeftPos(screen, host.book.updateScreenPosition(screen.width, screen.getXSize()));
             host.book.syncLayout();
         }
         reposition(screen, host);
-        return List.of(host.button, host.rotate);
+        return host.rotate == null ? List.of(host.button) : List.of(host.button, host.rotate);
     }
 
     public static void tick(Screen screen) {

@@ -312,11 +312,25 @@ public final class RecipeCategoryConfig {
         public List<String> mods = new ArrayList<>();
 
         public ItemStack iconStack() {
-            ResourceLocation location = ResourceLocation.tryParse(icon);
+            String itemId = icon;
+            String potionId = null;
+            int hash = icon == null ? -1 : icon.indexOf('#');
+            if (hash >= 0) {
+                itemId = icon.substring(0, hash);
+                potionId = icon.substring(hash + 1);
+            }
+            ResourceLocation location = ResourceLocation.tryParse(itemId);
             if (location == null || !BuiltInRegistries.ITEM.containsKey(location)) {
                 return new ItemStack(Items.BOOK);
             }
-            return new ItemStack(BuiltInRegistries.ITEM.get(location));
+            ItemStack stack = new ItemStack(BuiltInRegistries.ITEM.get(location));
+            ResourceLocation potion = potionId == null ? null : ResourceLocation.tryParse(potionId);
+            if (potion != null) {
+                BuiltInRegistries.POTION.getHolder(potion).ifPresent(holder ->
+                        stack.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
+                                new net.minecraft.world.item.alchemy.PotionContents(holder)));
+            }
+            return stack;
         }
 
         public Component title() {

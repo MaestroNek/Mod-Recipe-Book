@@ -96,11 +96,12 @@ public final class VanillaRecipeBookGuard {
                             Layout layout, int leftPos, int topPos) {
         ImageButton vanillaButton = findRecipeButton(widgets, ourButton);
         boolean hide = RecipeCategoryConfig.hideVanillaBook();
+        boolean pair = !hide && vanillaButton != null;
         boolean guiMoved = layout.lastLeft != leftPos || layout.lastTop != topPos;
 
         // ponytail: live coords are stale on the frame leftPos jumps; other mods' new slot is adopted next frame.
-        int shiftX = pairShiftX(layout, hide);
-        int shiftY = pairShiftY(layout, hide);
+        int shiftX = pairShiftX(layout, !pair);
+        int shiftY = pairShiftY(layout, !pair);
         if (vanillaButton != null && !guiMoved) {
             int liveRelX = vanillaButton.getX() - leftPos;
             int liveRelY = vanillaButton.getY() - topPos;
@@ -115,8 +116,8 @@ public final class VanillaRecipeBookGuard {
 
         int vanillaX = leftPos + layout.anchorRelX - shiftX;
         int vanillaY = topPos + layout.anchorRelY - shiftY;
-        int ourX = hide ? vanillaX : vanillaX + layout.stackDx;
-        int ourY = hide ? vanillaY : vanillaY + layout.stackDy;
+        int ourX = pair ? vanillaX + layout.stackDx : vanillaX;
+        int ourY = pair ? vanillaY + layout.stackDy : vanillaY;
 
         if (hide && vanilla != null && vanilla.isVisible()) {
             vanilla.toggleVisibility();

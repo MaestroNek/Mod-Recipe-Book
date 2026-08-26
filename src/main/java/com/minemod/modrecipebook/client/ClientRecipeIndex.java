@@ -11,6 +11,8 @@ import net.minecraft.server.packs.resources.MultiPackResourceManager;
 import net.minecraft.server.packs.resources.SimpleReloadInstance;
 import net.minecraft.tags.TagManager;
 import net.minecraft.util.Unit;
+import net.minecraft.world.flag.FeatureFlags;
+import net.minecraft.world.item.alchemy.PotionBrewing;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.neoforged.neoforge.common.conditions.ConditionContext;
 import net.neoforged.neoforge.common.conditions.ICondition;
@@ -26,7 +28,8 @@ final class ClientRecipeIndex {
     static void ensureIndexed() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level != null) {
-            ModRecipeIndex.rebuild(minecraft.level.getRecipeManager(), minecraft.level.registryAccess());
+            ModRecipeIndex.rebuild(minecraft.level.getRecipeManager(), minecraft.level.registryAccess(),
+                    minecraft.level.potionBrewing());
             return;
         }
         if (ModRecipeIndex.recipesIndexed() || attemptedWithoutWorld) {
@@ -58,7 +61,8 @@ final class ClientRecipeIndex {
                     false)
                 .done()
                 .join();
-            ModRecipeIndex.rebuild(recipes, access);
+            PotionBrewing brewing = PotionBrewing.bootstrap(FeatureFlags.DEFAULT_FLAGS, access);
+            ModRecipeIndex.rebuild(recipes, access, brewing);
             ModRecipeBook.LOGGER.info("Indexed {} recipes from installed mods (no world)", recipes.getRecipes().size());
         }
     }

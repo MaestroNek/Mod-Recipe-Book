@@ -104,11 +104,21 @@ public class CategoryEditScreen extends Screen {
             }
             String ns = id.getNamespace();
             fallbackIcon.putIfAbsent(ns, stack);
-            if (recipesReady && !ModRecipeIndex.isCraftableResult(item)) {
+            if (recipesReady) {
                 continue;
             }
             itemsByMod.computeIfAbsent(ns, k -> new ArrayList<>()).add(stack);
             modIcon.putIfAbsent(ns, stack);
+        }
+        if (recipesReady) {
+            for (String ns : catalog) {
+                List<ItemStack> stacks = ModRecipeIndex.craftableStacks(ns);
+                if (stacks.isEmpty()) {
+                    continue;
+                }
+                itemsByMod.put(ns, new ArrayList<>(stacks));
+                modIcon.putIfAbsent(ns, stacks.getFirst());
+            }
         }
         for (String id : catalog) {
             modIcon.putIfAbsent(id, fallbackIcon.get(id));
@@ -137,8 +147,7 @@ public class CategoryEditScreen extends Screen {
         clampScroll();
         addRenderableWidget(new IconPickButton(modsLeft, HEADER_Y, ICON_BTN_W, 20, b ->
                 minecraft.setScreen(new ItemPickScreen(this, stack -> {
-                    ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
-                    draft.icon = id.toString();
+                    draft.icon = com.minemod.modrecipebook.recipe.PotionKeys.itemKey(stack);
                 }))));
         int nameLeft = modsLeft + ICON_BTN_W + 4;
         int nameRight = itemsLeft + RIGHT_W;
@@ -545,9 +554,15 @@ public class CategoryEditScreen extends Screen {
             super(Component.translatable("gui.modrecipebook.config.pick_item"));
             this.parent = parent;
             this.onPick = onPick;
+            Set<String> keys = new HashSet<>();
             for (Item item : BuiltInRegistries.ITEM) {
                 ItemStack stack = new ItemStack(item);
-                if (!stack.isEmpty()) {
+                if (!stack.isEmpty() && keys.add(com.minemod.modrecipebook.recipe.PotionKeys.itemKey(stack))) {
+                    all.add(stack);
+                }
+            }
+            for (ItemStack stack : ModRecipeIndex.allCraftableStacks()) {
+                if (keys.add(com.minemod.modrecipebook.recipe.PotionKeys.itemKey(stack))) {
                     all.add(stack);
                 }
             }
@@ -589,7 +604,9 @@ public class CategoryEditScreen extends Screen {
                 for (ItemStack stack : all) {
                     String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                     String name = I18n.get(stack.getDescriptionId());
-                    if (id.contains(q) || name.toLowerCase(Locale.ROOT).contains(q)) {
+                    String hover = stack.getHoverName().getString();
+                    if (id.contains(q) || name.toLowerCase(Locale.ROOT).contains(q)
+                            || hover.toLowerCase(Locale.ROOT).contains(q)) {
                         nextItems.add(stack);
                     }
                 }

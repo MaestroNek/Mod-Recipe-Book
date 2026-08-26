@@ -9,11 +9,13 @@
     "AbstractFurnaceScreenMixin",
     "AbstractContainerScreenMixin",
     "AbstractContainerScreenAccessor",
+    "BrewingStandScreenMixin",
     "ScreenMixin",
     "RecipeBookComponentMixin",
     "RecipeToastMixin"
   ],
   "mixins": [
+    "PotionBrewingAccessor",
     "RecipeBookMixin",
     "ServerGamePacketListenerImplMixin"
   ],

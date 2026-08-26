@@ -4,8 +4,12 @@ import com.minemod.modrecipebook.ModRecipeBook;
 import com.minemod.modrecipebook.client.jei.JeiDetailPanel;
 import com.minemod.modrecipebook.client.layout.RecipeLayout;
 import com.minemod.modrecipebook.client.layout.RecipeLayouts;
+import com.minemod.modrecipebook.net.PlaceBrewingPayload;
+import com.minemod.modrecipebook.recipe.BrewingMixRecipe;
+import com.minemod.modrecipebook.recipe.BrewingRecipes;
 import com.minemod.modrecipebook.recipe.IngredientExtractor;
 import com.minemod.modrecipebook.recipe.ModRecipeIndex;
+import com.minemod.modrecipebook.recipe.PotionKeys;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -18,13 +22,14 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.gui.screens.recipebook.GhostRecipe;
 import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.StackedContents;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.BrewingStandMenu;
 import net.minecraft.world.inventory.RecipeBookMenu;
 import net.minecraft.world.inventory.RecipeBookType;
 import net.minecraft.world.inventory.Slot;
@@ -35,15 +40,17 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.recipebook.PlaceRecipe;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     public static final ResourceLocation TEXTURE = ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "textures/gui/recipe_book.png");
@@ -68,8 +75,8 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     private static final int ARROW_W = 17;
     private static final int ARROW_H = 12;
     private static final int TAB_ARROW_GAP = 3;
-    private static final EnumMap<RecipeBookType, Boolean> OPEN = new EnumMap<>(RecipeBookType.class);
-    private static final EnumMap<RecipeBookType, Boolean> FILTER = new EnumMap<>(RecipeBookType.class);
+    private static final Map<String, Boolean> OPEN = new HashMap<>();
+    private static final Map<String, Boolean> FILTER = new HashMap<>();
     private static final Component SEARCH_HINT = Component.translatable("gui.recipebook.search_hint")
             .withStyle(ChatFormatting.ITALIC, ChatFormatting.GRAY);
 
@@ -79,7 +86,8 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     private final StackedContents stackedContents = new StackedContents();
 
     private Minecraft minecraft;
-    private RecipeBookMenu<?, ?> menu;
+    private AbstractContainerMenu menu;
+    private String bookKey = RecipeBookType.CRAFTING.name();
     private AbstractContainerScreen<?> screen;
     private RecipeBookComponent vanilla;
     private EditBox searchBox;
@@ -102,17 +110,18 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     private DeviceDetailPanel jeiDetail;
     private Component emptyDetail;
 
-    public void init(int width, int height, Minecraft minecraft, boolean widthTooNarrow, RecipeBookMenu<?, ?> menu,
+    public void init(int width, int height, Minecraft minecraft, boolean widthTooNarrow, AbstractContainerMenu menu,
                      AbstractContainerScreen<?> screen, RecipeBookComponent vanilla) {
         this.width = width;
         this.height = height;
         this.minecraft = minecraft;
         this.widthTooNarrow = widthTooNarrow;
         this.menu = menu;
+        this.bookKey = bookKey(menu);
         this.screen = screen;
         this.vanilla = vanilla;
-        this.visible = OPEN.getOrDefault(menu.getRecipeBookType(), false);
-        this.filteringCraftable = FILTER.getOrDefault(menu.getRecipeBookType(), false);
+        this.visible = OPEN.getOrDefault(bookKey, false);
+        this.filteringCraftable = FILTER.getOrDefault(bookKey, false);
         if (this.visible && vanilla != null && vanilla.isVisible()) {
             vanilla.toggleVisibility();
         }
@@ -166,7 +175,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         if (minecraft.player != null) {
             minecraft.player.getInventory().fillStackedContents(stackedContents);
         }
-        menu.fillCraftSlotsStackedContents(stackedContents);
+        fillCraftSlots();
         String search = searchBox != null ? searchBox.getValue() : "";
         searchBox = new EditBox(minecraft.font, bookX + 25, bookY + 14, 80, 14, SEARCH_HINT);
         searchBox.setMaxLength(50);
@@ -358,7 +367,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         }
         this.visible = visible;
         if (menu != null) {
-            OPEN.put(menu.getRecipeBookType(), visible);
+            OPEN.put(bookKey, visible);
         }
         if (visible) {
             initVisuals();
@@ -510,7 +519,8 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
 
     public void renderGhostRecipe(GuiGraphics graphics, int leftPos, int topPos, float partialTick) {
         if (visible) {
-            ghostRecipe.render(graphics, minecraft, leftPos, topPos, true, partialTick);
+            boolean largeResult = !(menu instanceof BrewingStandMenu);
+            ghostRecipe.render(graphics, minecraft, leftPos, topPos, largeResult, partialTick);
         }
     }
 
@@ -608,7 +618,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             filteringCraftable = !filteringCraftable;
             filterButton.setStateTriggered(filteringCraftable);
             if (menu != null) {
-                FILTER.put(menu.getRecipeBookType(), filteringCraftable);
+                FILTER.put(bookKey, filteringCraftable);
             }
             updateCollections(true);
             return true;
@@ -664,10 +674,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     }
 
     private boolean isRecipeKnown(Object recipe) {
-        if (!(recipe instanceof RecipeHolder<?> holder)) {
-            return true;
-        }
-        return ClientUnlockedRecipes.isUnlocked(holder.id());
+        return recipe instanceof RecipeHolder<?> holder && ClientUnlockedRecipes.isUnlocked(holder.id());
     }
 
     private boolean anyOutputRecipeExists(ItemStack stack) {
@@ -675,7 +682,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             return false;
         }
         String key = itemKey(stack);
-        for (RecipeHolder<?> holder : minecraft.level.getRecipeManager().getRecipes()) {
+        for (RecipeHolder<?> holder : ModRecipeIndex.byResult(stack.getItem())) {
             ItemStack out = IngredientExtractor.result(holder.value(), minecraft.level.registryAccess());
             if (!out.isEmpty() && key.equals(itemKey(out))) {
                 return true;
@@ -685,7 +692,23 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     }
 
     private static String itemKey(ItemStack stack) {
-        return net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        return PotionKeys.itemKey(stack);
+    }
+
+    private static String bookKey(AbstractContainerMenu menu) {
+        if (menu instanceof RecipeBookMenu<?, ?> bookMenu) {
+            return bookMenu.getRecipeBookType().name();
+        }
+        if (menu instanceof BrewingStandMenu) {
+            return BrewingRecipes.BOOK_KEY;
+        }
+        return RecipeBookType.CRAFTING.name();
+    }
+
+    private void fillCraftSlots() {
+        if (menu instanceof RecipeBookMenu<?, ?> bookMenu) {
+            bookMenu.fillCraftSlotsStackedContents(stackedContents);
+        }
     }
 
     private RecipeGroup findUnlockedGroup(ItemStack stack) {
@@ -742,15 +765,21 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         if (minecraft.player == null || menu == null) {
             return false;
         }
+        if (recipe.value() instanceof BrewingMixRecipe) {
+            return menu instanceof BrewingStandMenu;
+        }
+        if (!(menu instanceof RecipeBookMenu<?, ?> bookMenu)) {
+            return false;
+        }
         RecipeType<?> type = recipe.value().getType();
-        boolean fits = switch (menu.getRecipeBookType()) {
+        boolean fits = switch (bookMenu.getRecipeBookType()) {
             case CRAFTING -> recipe.value() instanceof CraftingRecipe;
             case FURNACE -> type == RecipeType.SMELTING;
             case BLAST_FURNACE -> type == RecipeType.BLASTING;
             case SMOKER -> type == RecipeType.SMOKING;
             default -> true;
         };
-        return fits && recipe.value().canCraftInDimensions(menu.getGridWidth(), menu.getGridHeight());
+        return fits && recipe.value().canCraftInDimensions(bookMenu.getGridWidth(), bookMenu.getGridHeight());
     }
 
     private void place(RecipeHolder<?> recipe, boolean placeAll) {
@@ -758,6 +787,11 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             return;
         }
         clearGhosts();
+        if (recipe.value() instanceof BrewingMixRecipe) {
+            PacketDistributor.sendToServer(new PlaceBrewingPayload(recipe.id(), placeAll));
+            setupBrewingGhost(recipe, placeAll);
+            return;
+        }
         minecraft.gameMode.handlePlaceRecipe(minecraft.player.containerMenu.containerId, recipe, placeAll);
     }
 
@@ -769,12 +803,52 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     }
 
     public void setupGhostRecipe(RecipeHolder<?> recipe, List<Slot> slots) {
+        if (!(menu instanceof RecipeBookMenu<?, ?> bookMenu)) {
+            return;
+        }
         ghostRecipe.clear();
         ItemStack result = IngredientExtractor.result(recipe.value(), minecraft.level.registryAccess());
         ghostRecipe.setRecipe(recipe);
         ghostRecipe.addIngredient(Ingredient.of(result), slots.get(0).x, slots.get(0).y);
-        placeRecipe(menu.getGridWidth(), menu.getGridHeight(), menu.getResultSlotIndex(), recipe,
+        placeRecipe(bookMenu.getGridWidth(), bookMenu.getGridHeight(), bookMenu.getResultSlotIndex(), recipe,
                 recipe.value().getIngredients().iterator(), 0);
+    }
+
+    private void setupBrewingGhost(RecipeHolder<?> recipe, boolean placeAll) {
+        if (!(recipe.value() instanceof BrewingMixRecipe mix) || menu.slots.size() < 4) {
+            return;
+        }
+        ghostRecipe.clear();
+        ghostRecipe.setRecipe(recipe);
+        int bottles = placeAll ? 3 : 1;
+        int bottleLeft = countGhostStock(stack -> ItemStack.isSameItemSameComponents(stack, mix.input()));
+        for (int i = 0; i < bottles; i++) {
+            if (bottleLeft > 0) {
+                bottleLeft--;
+                continue;
+            }
+            Slot slot = menu.slots.get(i);
+            ghostRecipe.addIngredient(Ingredient.of(mix.input()), slot.x, slot.y);
+        }
+        if (countGhostStock(mix.reagent()) < 1) {
+            Slot ingredient = menu.slots.get(3);
+            ghostRecipe.addIngredient(mix.reagent(), ingredient.x, ingredient.y);
+        }
+    }
+
+    private int countGhostStock(Ingredient ingredient) {
+        return countGhostStock(ingredient::test);
+    }
+
+    private int countGhostStock(Predicate<ItemStack> match) {
+        int n = 0;
+        for (Slot slot : menu.slots) {
+            ItemStack stack = slot.getItem();
+            if (!stack.isEmpty() && match.test(stack)) {
+                n += stack.getCount();
+            }
+        }
+        return n;
     }
 
     @Override
@@ -865,7 +939,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         stackedContents.clear();
         if (minecraft.player != null) {
             minecraft.player.getInventory().fillStackedContents(stackedContents);
-            menu.fillCraftSlotsStackedContents(stackedContents);
+            fillCraftSlots();
             timesInventoryChanged = minecraft.player.getInventory().getTimesChanged();
         }
         List<RecipeHolder<?>> source;
@@ -889,7 +963,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
                 continue;
             }
             if (!query.isEmpty()) {
-                String name = I18n.get(result.getDescriptionId()).toLowerCase(Locale.ROOT);
+                String name = result.getHoverName().getString().toLowerCase(Locale.ROOT);
                 String id = holder.id().toString().toLowerCase(Locale.ROOT);
                 if (!name.contains(query) && !id.contains(query)) {
                     continue;
@@ -949,7 +1023,8 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         if (!canPlaceIntoMenu(holder)) {
             return false;
         }
-        if (!holder.value().canCraftInDimensions(menu.getGridWidth(), menu.getGridHeight())) {
+        if (menu instanceof RecipeBookMenu<?, ?> bookMenu
+                && !holder.value().canCraftInDimensions(bookMenu.getGridWidth(), bookMenu.getGridHeight())) {
             return false;
         }
         return IngredientExtractor.canCraft(holder.value(), minecraft.player.getInventory(), stackedContents);

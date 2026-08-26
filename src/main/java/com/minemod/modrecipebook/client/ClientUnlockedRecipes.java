@@ -49,7 +49,7 @@ public final class ClientUnlockedRecipes {
             if ("minecraft".equals(id.getNamespace()) && !RecipeCategoryConfig.hideVanillaBook()) {
                 continue;
             }
-            minecraft.level.getRecipeManager().byKey(id).ifPresent(holder -> {
+            ModRecipeIndex.byId(id).ifPresent(holder -> {
                 if (IngredientExtractor.result(holder.value(), minecraft.level.registryAccess()).isEmpty()) {
                     return;
                 }
@@ -77,7 +77,8 @@ public final class ClientUnlockedRecipes {
     public static void onRecipesUpdated(RecipesUpdatedEvent event) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level != null) {
-            ModRecipeIndex.rebuild(minecraft.level.getRecipeManager(), minecraft.level.registryAccess());
+            ModRecipeIndex.rebuild(minecraft.level.getRecipeManager(), minecraft.level.registryAccess(),
+                    minecraft.level.potionBrewing());
         }
         refreshOpenBook();
     }

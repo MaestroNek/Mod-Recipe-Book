@@ -1,6 +1,7 @@
 package com.minemod.modrecipebook.recipe;
 
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.StackedContents;
 import net.minecraft.world.item.Item;
@@ -54,6 +55,9 @@ public final class IngredientExtractor {
         if (inventory == null) {
             return false;
         }
+        if (recipe instanceof BrewingMixRecipe mix) {
+            return mix.presentIn(inventory);
+        }
         if (recipe instanceof CraftingRecipe && stacked != null) {
             return stacked.canCraft(recipe, null);
         }
@@ -80,6 +84,13 @@ public final class IngredientExtractor {
             }
         }
         return true;
+    }
+
+    public static boolean allIngredientsKnown(Recipe<?> recipe, Set<Item> known, Set<ResourceLocation> knownIds) {
+        if (recipe instanceof BrewingMixRecipe mix) {
+            return ingredientKnown(mix.reagent(), known) && knownIds.contains(PotionKeys.knownId(mix.input()));
+        }
+        return allIngredientsKnown(recipe, known);
     }
 
     public static boolean allIngredientsKnown(Recipe<?> recipe, Set<Item> known) {
@@ -126,6 +137,15 @@ public final class IngredientExtractor {
     }
 
     public static Set<Item> unlockItems(Recipe<?> recipe, RegistryAccess access) {
+        if (recipe instanceof BrewingMixRecipe mix) {
+            Set<Item> reagents = new HashSet<>();
+            for (ItemStack stack : mix.reagent().getItems()) {
+                if (!stack.isEmpty()) {
+                    reagents.add(stack.getItem());
+                }
+            }
+            return reagents;
+        }
         Set<Item> items = new HashSet<>();
         for (Ingredient ingredient : items(recipe)) {
             for (ItemStack stack : ingredient.getItems()) {

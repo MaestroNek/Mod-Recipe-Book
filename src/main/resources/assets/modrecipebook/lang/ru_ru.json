@@ -29,5 +29,6 @@
   "gui.modrecipebook.config.items.empty": "Нет предметов",
   "gui.modrecipebook.config.unassigned": "Нет ни в одной категории",
   "gui.modrecipebook.config.pick_item": "Выберите иконку",
-  "gui.modrecipebook.config.page": "%s / %s"
+  "gui.modrecipebook.config.page": "%s / %s",
+  "gui.modrecipebook.layout.brewing": "Варка"
 }

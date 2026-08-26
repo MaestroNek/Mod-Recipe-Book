@@ -1,5 +1,6 @@
 package com.minemod.modrecipebook.client.layout;
 
+import com.minemod.modrecipebook.recipe.BrewingMixRecipe;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -17,6 +18,7 @@ public final class RecipeLayouts {
     private static final RecipeLayout CRAFTING = new CraftingLayout();
     private static final RecipeLayout COOKING = new CookingLayout();
     private static final RecipeLayout GENERIC = new GenericLayout();
+    private static final RecipeLayout BREWING = new BrewingLayout();
     private static final RecipeLayout SMITHING = new ProcessingLayout(
             new ItemStack(Items.SMITHING_TABLE), ItemStack.EMPTY, "Smithing", false);
     private static final RecipeLayout STONECUTTER = new ProcessingLayout(
@@ -30,6 +32,9 @@ public final class RecipeLayouts {
         RecipeLayout mapped = typeId == null ? null : BY_TYPE.get(typeId);
         if (mapped != null) {
             return mapped;
+        }
+        if (recipe.value() instanceof BrewingMixRecipe) {
+            return BREWING;
         }
         if (recipe.value() instanceof CraftingRecipe) {
             return CRAFTING;
