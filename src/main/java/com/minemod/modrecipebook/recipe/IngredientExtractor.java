@@ -33,6 +33,8 @@ public final class IngredientExtractor {
         } catch (Exception ignored) {
             // ponytail: some custom recipes throw from getIngredients()
         }
+        // Exposure FilmDevelopingRecipe keeps the film in sourceIngredient, not getIngredients().
+        reflectIngredients(recipe, "getSourceIngredient", list);
         if (list.isEmpty()) {
             reflectIngredients(recipe, "getItemIngredients", list);
             reflectIngredients(recipe, "itemIngredients", list);
@@ -40,6 +42,18 @@ public final class IngredientExtractor {
             reflectIngredients(recipe, "input", list);
         }
         return list;
+    }
+
+    private static boolean hasDeclaredIngredients(Recipe<?> recipe) {
+        try {
+            for (Ingredient ingredient : recipe.getIngredients()) {
+                if (ingredient != null && !ingredient.isEmpty()) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
     }
 
     public static boolean hasInputs(Recipe<?> recipe) {
@@ -58,7 +72,11 @@ public final class IngredientExtractor {
         if (recipe instanceof BrewingMixRecipe mix) {
             return mix.presentIn(inventory);
         }
-        if (recipe instanceof CraftingRecipe && stacked != null) {
+        // CustomRecipe often omits inputs from getIngredients() (fireworks: none;
+        // Exposure film developing: only potions, film is sourceIngredient).
+        // StackedContents.canCraft also ignores potion components.
+        if (recipe instanceof CraftingRecipe crafting && stacked != null
+                && hasDeclaredIngredients(recipe) && !crafting.isSpecial()) {
             return stacked.canCraft(recipe, null);
         }
         List<Ingredient> ingredients = items(recipe);
