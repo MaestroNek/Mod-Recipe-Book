@@ -11,7 +11,7 @@ Recipe layouts come from [JEI](https://github.com/mezz/JustEnoughItems).
 - Own recipe book button on inventory, crafting table, furnaces, and the brewing stand
 - **Recipes unlock when you find items.** By default a recipe unlocks only after you have found every ingredient. Finding an item also unlocks recipes that craft that item
 - All Recipes tab plus **custom categories** — choose which mods appear in each category
-- **Potion recipes**
+- **Potion recipes** supported
 - Left click a recipe to place it in the grid, left click + shift to place maximum, right click to open the item recipes layout 
 - When the vanilla book is disabled, vanilla recipes appear in **All Recipes**
 
