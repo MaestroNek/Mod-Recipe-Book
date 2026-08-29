@@ -40,6 +40,7 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.recipebook.PlaceRecipe;
+import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
@@ -572,6 +573,12 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
                     playClick();
                     return true;
                 }
+                Optional<FluidStack> fluid = jei.fluidUnderMouse(mouseX, mouseY);
+                if (fluid.isPresent()) {
+                    openFluidRecipes(fluid.get());
+                    playClick();
+                    return true;
+                }
                 return jei.isMouseOver(mouseX, mouseY);
             }
             if (jei.mouseClicked(mouseX, mouseY, button)) {
@@ -671,6 +678,20 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         showEmptyDetail(anyOutputRecipeExists(focused)
                 ? "gui.modrecipebook.unknown_recipe"
                 : "gui.modrecipebook.no_recipe");
+    }
+
+    private void openFluidRecipes(FluidStack fluid) {
+        JeiDetailPanel panel = JeiDetailPanel.tryCreateFluid(fluid);
+        if (panel != null) {
+            emptyDetail = null;
+            jeiDetail = panel;
+            detail = panel.recipe();
+            detailGroup = null;
+            detailIndex = 0;
+            refreshLayout();
+            return;
+        }
+        showEmptyDetail("gui.modrecipebook.no_recipe");
     }
 
     private boolean isRecipeKnown(Object recipe) {

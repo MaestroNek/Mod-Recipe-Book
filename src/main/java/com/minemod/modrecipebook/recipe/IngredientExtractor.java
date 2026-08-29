@@ -1,17 +1,20 @@
 package com.minemod.modrecipebook.recipe;
 
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.StackedContents;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
+import net.neoforged.neoforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.crafting.FluidIngredient;
+import net.neoforged.neoforge.fluids.crafting.SizedFluidIngredient;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -57,12 +60,27 @@ public final class IngredientExtractor {
     }
 
     public static boolean hasInputs(Recipe<?> recipe) {
-        if (!items(recipe).isEmpty()) {
-            return true;
+        return !items(recipe).isEmpty() || !fluidInputs(recipe).isEmpty();
+    }
+
+    public static Set<Item> itemIngredients(Recipe<?> recipe) {
+        Set<Item> items = new HashSet<>();
+        for (Ingredient ingredient : items(recipe)) {
+            for (ItemStack stack : ingredient.getItems()) {
+                if (!stack.isEmpty()) {
+                    items.add(stack.getItem());
+                }
+            }
         }
-        Set<Item> fluids = new HashSet<>();
-        reflectFluidBuckets(recipe, fluids);
-        return !fluids.isEmpty();
+        return items;
+    }
+
+    public static Set<ResourceLocation> fluidInputs(Recipe<?> recipe) {
+        return reflectFluids(recipe, "getFluidIngredients", "fluidIngredients");
+    }
+
+    public static Set<ResourceLocation> fluidOutputs(Recipe<?> recipe) {
+        return reflectFluids(recipe, "getFluidResults", "fluidResults");
     }
 
     public static boolean canCraft(Recipe<?> recipe, Inventory inventory, StackedContents stacked) {
@@ -164,15 +182,7 @@ public final class IngredientExtractor {
             }
             return reagents;
         }
-        Set<Item> items = new HashSet<>();
-        for (Ingredient ingredient : items(recipe)) {
-            for (ItemStack stack : ingredient.getItems()) {
-                if (!stack.isEmpty()) {
-                    items.add(stack.getItem());
-                }
-            }
-        }
-        reflectFluidBuckets(recipe, items);
+        Set<Item> items = itemIngredients(recipe);
         if (items.isEmpty()) {
             ItemStack result = result(recipe, access);
             if (!result.isEmpty()) {
@@ -237,49 +247,92 @@ public final class IngredientExtractor {
         return ItemStack.EMPTY;
     }
 
-    private static void reflectFluidBuckets(Recipe<?> recipe, Set<Item> items) {
+    private static Set<ResourceLocation> reflectFluids(Recipe<?> recipe, String methodName, String fieldName) {
+        Set<ResourceLocation> fluids = new HashSet<>();
+        collectFromMethod(recipe, methodName, fluids);
+        collectFromFields(recipe, fieldName, fluids);
+        if (fluids.isEmpty()) {
+            try {
+                collectFromFields(recipe.getClass().getMethod("getParams").invoke(recipe), fieldName, fluids);
+            } catch (ReflectiveOperationException ignored) {
+            }
+        }
+        return fluids;
+    }
+
+    private static void collectFromMethod(Object target, String methodName, Set<ResourceLocation> fluids) {
+        if (target == null) {
+            return;
+        }
         try {
-            Method method = recipe.getClass().getMethod("getFluidIngredients");
-            Object value = method.invoke(recipe);
-            if (!(value instanceof Iterable<?> iterable)) {
+            collectFluids(target.getClass().getMethod(methodName).invoke(target), fluids);
+        } catch (ReflectiveOperationException ignored) {
+        }
+    }
+
+    private static void collectFromFields(Object target, String fieldName, Set<ResourceLocation> fluids) {
+        if (target == null) {
+            return;
+        }
+        for (Class<?> type = target.getClass(); type != null; type = type.getSuperclass()) {
+            try {
+                var field = type.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                collectFluids(field.get(target), fluids);
                 return;
+            } catch (ReflectiveOperationException ignored) {
             }
-            for (Object fluidIngredient : iterable) {
-                for (String name : List.of("getMatchingFluidStacks", "getMatchingFluidStack", "getDisplayedStacks")) {
-                    try {
-                        Object stacks = fluidIngredient.getClass().getMethod(name).invoke(fluidIngredient);
-                        addFluidBuckets(stacks, items);
-                    } catch (ReflectiveOperationException ignored) {
-                    }
-                }
-            }
-        } catch (ReflectiveOperationException ignored) {
         }
     }
 
-    private static void addFluidBuckets(Object stacks, Set<Item> items) {
-        if (!(stacks instanceof Iterable<?> iterable)) {
-            addOneFluidBucket(stacks, items);
+    private static void collectFluids(Object value, Set<ResourceLocation> out) {
+        if (value == null) {
             return;
         }
-        for (Object stack : iterable) {
-            addOneFluidBucket(stack, items);
+        if (value instanceof Fluid fluid) {
+            addFluid(fluid, out);
+            return;
+        }
+        if (value instanceof FluidStack stack) {
+            addFluid(stack.getFluid(), out);
+            return;
+        }
+        if (value instanceof SizedFluidIngredient sized) {
+            for (FluidStack stack : sized.getFluids()) {
+                addFluid(stack.getFluid(), out);
+            }
+            return;
+        }
+        if (value instanceof FluidIngredient ingredient) {
+            for (FluidStack stack : ingredient.getStacks()) {
+                addFluid(stack.getFluid(), out);
+            }
+            return;
+        }
+        if (value instanceof Object[] array) {
+            for (Object element : array) {
+                collectFluids(element, out);
+            }
+            return;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object element : iterable) {
+                collectFluids(element, out);
+            }
+            return;
+        }
+        for (String name : List.of("getFluid", "getFluids", "getStacks", "getMatchingFluidStacks",
+                "getMatchingFluidStack", "getDisplayedStacks")) {
+            try {
+                collectFluids(value.getClass().getMethod(name).invoke(value), out);
+            } catch (ReflectiveOperationException ignored) {
+            }
         }
     }
 
-    private static void addOneFluidBucket(Object stack, Set<Item> items) {
-        if (stack == null) {
-            return;
-        }
-        try {
-            Object fluid = stack.getClass().getMethod("getFluid").invoke(stack);
-            if (fluid instanceof Fluid f && f != Fluids.EMPTY) {
-                Item bucket = f.getBucket();
-                if (bucket != Items.AIR) {
-                    items.add(bucket);
-                }
-            }
-        } catch (ReflectiveOperationException ignored) {
+    private static void addFluid(Fluid fluid, Set<ResourceLocation> out) {
+        if (fluid != null && fluid != Fluids.EMPTY) {
+            out.add(BuiltInRegistries.FLUID.getKey(fluid));
         }
     }
 }

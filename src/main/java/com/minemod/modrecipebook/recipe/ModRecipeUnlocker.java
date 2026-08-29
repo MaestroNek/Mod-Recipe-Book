@@ -95,7 +95,7 @@ public final class ModRecipeUnlocker {
             if (BuiltInRegistries.ITEM.containsKey(key)) {
                 Item item = BuiltInRegistries.ITEM.get(key);
                 for (RecipeHolder<?> holder : ModRecipeIndex.byIngredient(item)) {
-                    if (requireAll && !IngredientExtractor.allIngredientsKnown(holder.value(), knownItems, knownIds)) {
+                    if (requireAll && !ModRecipeIndex.allUnlockItemsKnown(holder, knownItems, knownIds)) {
                         continue;
                     }
                     if (unlocked.add(holder.id())) {
@@ -118,7 +118,7 @@ public final class ModRecipeUnlocker {
                 ItemStack result = IngredientExtractor.result(holder.value(), access);
                 boolean resultKnown = PotionKeys.knownId(result).equals(key);
                 if (!resultKnown && requireAll
-                        && !IngredientExtractor.allIngredientsKnown(holder.value(), knownItems, knownIds)) {
+                        && !ModRecipeIndex.allUnlockItemsKnown(holder, knownItems, knownIds)) {
                     continue;
                 }
                 if (unlocked.add(holder.id())) {

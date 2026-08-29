@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,6 +35,14 @@ public final class ModRecipeIndex {
     private static Map<String, List<ItemStack>> craftableStacks = Map.of();
     private static List<ItemStack> allCraftableStacks = List.of();
     private static List<String> modOrder = List.of();
+    private static Map<ResourceLocation, List<FluidProducer>> fluidProducers = Map.of();
+
+    public record FluidProducer(Set<Item> items, Set<ResourceLocation> fluids) {
+        public FluidProducer(Set<Item> items, Set<ResourceLocation> fluids) {
+            this.items = Set.copyOf(items);
+            this.fluids = Set.copyOf(fluids);
+        }
+    }
 
     private ModRecipeIndex() {}
 
@@ -50,17 +59,32 @@ public final class ModRecipeIndex {
         Map<ResourceLocation, RecipeHolder<?>> ids = new HashMap<>();
         Set<String> craftable = new HashSet<>();
         Set<Item> craftableResults = new HashSet<>();
-        Set<String> emptyResultMods = new HashSet<>();
         Map<String, ItemStack> stackByKey = new LinkedHashMap<>();
         Map<String, List<ItemStack>> stacksByNs = new LinkedHashMap<>();
+        Map<ResourceLocation, LinkedHashSet<FluidProducer>> producers = new HashMap<>();
 
         List<RecipeHolder<?>> holders = new ArrayList<>(manager.getRecipes());
         holders.addAll(BrewingRecipes.collect(brewing));
+        holders.addAll(ContainerFillRecipes.collect(holders, access));
+        ContainerEmptyRecipes.addProducers(producers);
+
+        for (RecipeHolder<?> holder : holders) {
+            Recipe<?> recipe = holder.value();
+            Set<Item> itemInputs = IngredientExtractor.itemIngredients(recipe);
+            Set<ResourceLocation> fluidInputs = IngredientExtractor.fluidInputs(recipe);
+            if (itemInputs.isEmpty() && fluidInputs.isEmpty()) {
+                continue;
+            }
+            FluidProducer producer = new FluidProducer(itemInputs, fluidInputs);
+            for (ResourceLocation fluid : IngredientExtractor.fluidOutputs(recipe)) {
+                producers.computeIfAbsent(fluid, k -> new LinkedHashSet<>()).add(producer);
+            }
+        }
 
         for (RecipeHolder<?> holder : holders) {
             Recipe<?> recipe = holder.value();
             ItemStack result = IngredientExtractor.result(recipe, access);
-            if (result.isEmpty() && IngredientExtractor.items(recipe).isEmpty()) {
+            if (result.isEmpty()) {
                 continue;
             }
             ResourceLocation id = holder.id();
@@ -69,45 +93,34 @@ public final class ModRecipeIndex {
             if (!"minecraft".equals(recipeNs)) {
                 mods.computeIfAbsent(recipeNs, ns -> new ArrayList<>()).add(holder);
             }
-            for (Item item : IngredientExtractor.unlockItems(recipe, access)) {
+            Set<Item> needed = new HashSet<>();
+            collectRecipeItems(recipe, needed, producers, new HashSet<>());
+            if (needed.isEmpty()) {
+                needed.addAll(IngredientExtractor.unlockItems(recipe, access));
+            }
+            for (Item item : needed) {
                 ingredients.computeIfAbsent(item, k -> new ArrayList<>()).add(holder);
             }
             if (recipe instanceof BrewingMixRecipe mix) {
                 knownKeys.computeIfAbsent(PotionKeys.knownId(mix.input()), k -> new ArrayList<>()).add(holder);
-                if (!result.isEmpty()) {
-                    knownKeys.computeIfAbsent(PotionKeys.knownId(result), k -> new ArrayList<>()).add(holder);
-                }
+                knownKeys.computeIfAbsent(PotionKeys.knownId(result), k -> new ArrayList<>()).add(holder);
             }
-            boolean usable = IngredientExtractor.hasInputs(recipe)
-                    && (result.isEmpty() || result.getItem() != Items.BARRIER);
-            if (usable && !"minecraft".equals(recipeNs) && !"neoforge".equals(recipeNs)
-                    && !"modrecipebook".equals(recipeNs)) {
-                craftable.add(recipeNs);
-                if (result.isEmpty()) {
-                    emptyResultMods.add(recipeNs);
-                    resultMods.computeIfAbsent(recipeNs, ns -> new ArrayList<>()).add(holder);
-                }
-            }
-            if (!result.isEmpty()) {
-                results.computeIfAbsent(result.getItem(), item -> new ArrayList<>()).add(holder);
-                String itemNs = BuiltInRegistries.ITEM.getKey(result.getItem()).getNamespace();
-                if (!"neoforge".equals(itemNs) && !"modrecipebook".equals(itemNs)) {
-                    resultMods.computeIfAbsent(itemNs, ns -> new ArrayList<>()).add(holder);
-                    if (usable) {
-                        craftable.add(itemNs);
-                        craftableResults.add(result.getItem());
-                        String key = PotionKeys.itemKey(result);
-                        if (stackByKey.putIfAbsent(key, result.copy()) == null) {
-                            stacksByNs.computeIfAbsent(itemNs, ns -> new ArrayList<>()).add(result.copy());
-                        }
+            boolean usable = IngredientExtractor.hasInputs(recipe) && result.getItem() != Items.BARRIER;
+            results.computeIfAbsent(result.getItem(), item -> new ArrayList<>()).add(holder);
+            String itemNs = BuiltInRegistries.ITEM.getKey(result.getItem()).getNamespace();
+            if (!"neoforge".equals(itemNs) && !"modrecipebook".equals(itemNs)) {
+                resultMods.computeIfAbsent(itemNs, ns -> new ArrayList<>()).add(holder);
+                if (usable) {
+                    craftable.add(itemNs);
+                    if (!"minecraft".equals(recipeNs) && !"neoforge".equals(recipeNs)
+                            && !"modrecipebook".equals(recipeNs)) {
+                        craftable.add(recipeNs);
                     }
-                }
-            }
-        }
-        if (!emptyResultMods.isEmpty()) {
-            for (Item item : BuiltInRegistries.ITEM) {
-                if (emptyResultMods.contains(BuiltInRegistries.ITEM.getKey(item).getNamespace())) {
-                    craftableResults.add(item);
+                    craftableResults.add(result.getItem());
+                    String key = PotionKeys.itemKey(result);
+                    if (stackByKey.putIfAbsent(key, result.copy()) == null) {
+                        stacksByNs.computeIfAbsent(itemNs, ns -> new ArrayList<>()).add(result.copy());
+                    }
                 }
             }
         }
@@ -120,6 +133,9 @@ public final class ModRecipeIndex {
         byResult = Map.copyOf(results);
         byKnownKey = Map.copyOf(knownKeys);
         byId = Map.copyOf(ids);
+        Map<ResourceLocation, List<FluidProducer>> producerCopy = new HashMap<>();
+        producers.forEach((fluid, options) -> producerCopy.put(fluid, List.copyOf(options)));
+        fluidProducers = Map.copyOf(producerCopy);
         craftableMods = Set.copyOf(craftable);
         craftableItems = Set.copyOf(craftableResults);
         Map<String, List<ItemStack>> stackCopy = new HashMap<>();
@@ -165,6 +181,76 @@ public final class ModRecipeIndex {
 
     public static Collection<List<RecipeHolder<?>>> allByMod() {
         return byMod.values();
+    }
+
+    public static boolean allUnlockItemsKnown(RecipeHolder<?> holder, Set<Item> known, Set<ResourceLocation> knownIds) {
+        if (holder.value() instanceof BrewingMixRecipe) {
+            return IngredientExtractor.allIngredientsKnown(holder.value(), known, knownIds);
+        }
+        return recipeInputsKnown(holder.value(), known, new HashSet<>());
+    }
+
+    private static boolean recipeInputsKnown(Recipe<?> recipe, Set<Item> known, Set<ResourceLocation> visiting) {
+        if (!known.containsAll(IngredientExtractor.itemIngredients(recipe))) {
+            return false;
+        }
+        for (ResourceLocation fluid : IngredientExtractor.fluidInputs(recipe)) {
+            if (!fluidKnown(fluid, known, visiting)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean fluidKnown(ResourceLocation fluid, Set<Item> known, Set<ResourceLocation> visiting) {
+        if (!visiting.add(fluid)) {
+            return true;
+        }
+        List<FluidProducer> options = fluidProducers.get(fluid);
+        if (options == null || options.isEmpty()) {
+            return true;
+        }
+        for (FluidProducer option : options) {
+            if (producerKnown(option, known, visiting)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean producerKnown(FluidProducer option, Set<Item> known, Set<ResourceLocation> visiting) {
+        if (!known.containsAll(option.items())) {
+            return false;
+        }
+        for (ResourceLocation fluid : option.fluids()) {
+            if (!fluidKnown(fluid, known, visiting)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void collectRecipeItems(Recipe<?> recipe, Set<Item> out,
+                                           Map<ResourceLocation, LinkedHashSet<FluidProducer>> producers,
+                                           Set<ResourceLocation> visiting) {
+        out.addAll(IngredientExtractor.itemIngredients(recipe));
+        for (ResourceLocation fluid : IngredientExtractor.fluidInputs(recipe)) {
+            collectFluidItems(fluid, out, producers, visiting);
+        }
+    }
+
+    private static void collectFluidItems(ResourceLocation fluid, Set<Item> out,
+                                          Map<ResourceLocation, LinkedHashSet<FluidProducer>> producers,
+                                          Set<ResourceLocation> visiting) {
+        if (!visiting.add(fluid)) {
+            return;
+        }
+        for (FluidProducer option : producers.getOrDefault(fluid, new LinkedHashSet<>())) {
+            out.addAll(option.items());
+            for (ResourceLocation nested : option.fluids()) {
+                collectFluidItems(nested, out, producers, visiting);
+            }
+        }
     }
 
     public static List<RecipeHolder<?>> byIngredient(Item item) {

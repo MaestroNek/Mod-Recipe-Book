@@ -4,6 +4,7 @@ import com.minemod.modrecipebook.client.RecipeGroup;
 import com.minemod.modrecipebook.client.DeviceDetailPanel;
 import com.minemod.modrecipebook.client.ModRecipeBookComponent;
 import mezz.jei.api.gui.drawable.IDrawable;
+import mezz.jei.api.neoforge.NeoForgeTypes;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -16,6 +17,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import net.neoforged.neoforge.fluids.FluidStack;
 
 import java.util.List;
 import java.util.Optional;
@@ -69,6 +71,17 @@ public final class JeiDetailPanel implements DeviceDetailPanel {
             return null;
         }
         return new JeiDetailPanel(fallback, pages, 0, 0, pages.getFirst().recipes().getFirst());
+    }
+
+    public static JeiDetailPanel tryCreateFluid(FluidStack fluid) {
+        if (fluid == null || fluid.isEmpty() || !ModJeiPlugin.isAvailable()) {
+            return null;
+        }
+        List<JeiRecipeLookup.CategoryPage> pages = JeiRecipeLookup.lookupFluidOutput(fluid);
+        if (pages.isEmpty()) {
+            return null;
+        }
+        return new JeiDetailPanel(null, pages, 0, 0, pages.getFirst().recipes().getFirst());
     }
 
     @Override
@@ -343,6 +356,11 @@ public final class JeiDetailPanel implements DeviceDetailPanel {
     public Optional<ItemStack> itemUnderMouse(double mouseX, double mouseY) {
         return binding.drawable().getItemStackUnderMouse((int) mouseX, (int) mouseY)
                 .filter(stack -> !stack.isEmpty());
+    }
+
+    public Optional<FluidStack> fluidUnderMouse(double mouseX, double mouseY) {
+        return binding.drawable().getIngredientUnderMouse((int) mouseX, (int) mouseY, NeoForgeTypes.FLUID_STACK)
+                .filter(fluid -> fluid != null && !fluid.isEmpty());
     }
 
     @Override
