@@ -191,7 +191,7 @@ public final class ModRecipeIndex {
     }
 
     private static boolean recipeInputsKnown(Recipe<?> recipe, Set<Item> known, Set<ResourceLocation> visiting) {
-        if (!known.containsAll(IngredientExtractor.itemIngredients(recipe))) {
+        if (!IngredientExtractor.allIngredientsKnown(recipe, known)) {
             return false;
         }
         for (ResourceLocation fluid : IngredientExtractor.fluidInputs(recipe)) {

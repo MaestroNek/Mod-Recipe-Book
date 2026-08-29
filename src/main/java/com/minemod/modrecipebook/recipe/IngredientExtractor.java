@@ -44,6 +44,7 @@ public final class IngredientExtractor {
             reflectIngredients(recipe, "ingredients", list);
             reflectIngredients(recipe, "input", list);
         }
+        addSequencedIngredients(recipe, list);
         return list;
     }
 
@@ -76,7 +77,9 @@ public final class IngredientExtractor {
     }
 
     public static Set<ResourceLocation> fluidInputs(Recipe<?> recipe) {
-        return reflectFluids(recipe, "getFluidIngredients", "fluidIngredients");
+        Set<ResourceLocation> fluids = reflectFluids(recipe, "getFluidIngredients", "fluidIngredients");
+        addSequencedFluids(recipe, fluids);
+        return fluids;
     }
 
     public static Set<ResourceLocation> fluidOutputs(Recipe<?> recipe) {
@@ -190,6 +193,89 @@ public final class IngredientExtractor {
             }
         }
         return items;
+    }
+
+    private static void addSequencedIngredients(Recipe<?> recipe, List<Ingredient> out) {
+        Iterable<?> steps = sequence(recipe);
+        if (steps == null) {
+            return;
+        }
+        reflectIngredients(recipe, "getIngredient", out);
+        ItemStack transitional = transitionalItem(recipe);
+        for (Object step : steps) {
+            Recipe<?> stepRecipe = unwrapRecipe(step);
+            if (stepRecipe == null) {
+                continue;
+            }
+            try {
+                for (Ingredient ingredient : stepRecipe.getIngredients()) {
+                    if (ingredient != null && !ingredient.isEmpty() && !transitionalOnly(ingredient, transitional)) {
+                        out.add(ingredient);
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private static void addSequencedFluids(Recipe<?> recipe, Set<ResourceLocation> fluids) {
+        Iterable<?> steps = sequence(recipe);
+        if (steps == null) {
+            return;
+        }
+        for (Object step : steps) {
+            Recipe<?> stepRecipe = unwrapRecipe(step);
+            if (stepRecipe != null) {
+                fluids.addAll(reflectFluids(stepRecipe, "getFluidIngredients", "fluidIngredients"));
+            }
+        }
+    }
+
+    private static Iterable<?> sequence(Recipe<?> recipe) {
+        try {
+            Object value = recipe.getClass().getMethod("getSequence").invoke(recipe);
+            return value instanceof Iterable<?> steps ? steps : null;
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
+    }
+
+    private static Recipe<?> unwrapRecipe(Object step) {
+        if (step instanceof Recipe<?> recipe) {
+            return recipe;
+        }
+        try {
+            Object value = step.getClass().getMethod("getRecipe").invoke(step);
+            return value instanceof Recipe<?> recipe ? recipe : null;
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
+    }
+
+    private static ItemStack transitionalItem(Recipe<?> recipe) {
+        try {
+            Object value = recipe.getClass().getMethod("getTransitionalItem").invoke(recipe);
+            return value instanceof ItemStack stack ? stack : ItemStack.EMPTY;
+        } catch (ReflectiveOperationException ignored) {
+            return ItemStack.EMPTY;
+        }
+    }
+
+    private static boolean transitionalOnly(Ingredient ingredient, ItemStack transitional) {
+        if (transitional.isEmpty()) {
+            return false;
+        }
+        boolean any = false;
+        for (ItemStack stack : ingredient.getItems()) {
+            if (stack.isEmpty()) {
+                continue;
+            }
+            any = true;
+            if (stack.getItem() != transitional.getItem()) {
+                return false;
+            }
+        }
+        return any;
     }
 
     private static void reflectIngredients(Recipe<?> recipe, String fieldOrMethod, List<Ingredient> out) {
