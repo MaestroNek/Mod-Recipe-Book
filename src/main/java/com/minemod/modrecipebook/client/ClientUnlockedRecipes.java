@@ -1,11 +1,14 @@
 package com.minemod.modrecipebook.client;
 
+import com.minemod.modrecipebook.client.jei.JeiStations;
 import com.minemod.modrecipebook.net.UnlockRecipesPayload;
 import com.minemod.modrecipebook.recipe.IngredientExtractor;
 import com.minemod.modrecipebook.recipe.ModRecipeIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.toasts.RecipeToast;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -17,12 +20,17 @@ import java.util.Set;
 @EventBusSubscriber(modid = com.minemod.modrecipebook.ModRecipeBook.MODID, value = Dist.CLIENT)
 public final class ClientUnlockedRecipes {
     private static final Set<ResourceLocation> UNLOCKED = new HashSet<>();
+    private static final Set<ResourceLocation> KNOWN = new HashSet<>();
     private static boolean ownToast;
 
     private ClientUnlockedRecipes() {}
 
     public static boolean isUnlocked(ResourceLocation id) {
         return UNLOCKED.contains(id);
+    }
+
+    public static boolean isItemKnown(Item item) {
+        return KNOWN.contains(BuiltInRegistries.ITEM.getKey(item));
     }
 
     public static boolean showingOwnToast() {
@@ -32,12 +40,14 @@ public final class ClientUnlockedRecipes {
     public static void apply(UnlockRecipesPayload payload) {
         if (payload.replace()) {
             UNLOCKED.clear();
+            KNOWN.clear();
             UNLOCKED.addAll(payload.recipes());
+            KNOWN.addAll(payload.known());
             refreshOpenBook();
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
-        boolean added = false;
+        boolean added = KNOWN.addAll(payload.known());
         for (ResourceLocation id : payload.recipes()) {
             if (!UNLOCKED.add(id)) {
                 continue;
@@ -79,6 +89,7 @@ public final class ClientUnlockedRecipes {
         if (minecraft.level != null) {
             ModRecipeIndex.rebuild(minecraft.level.getRecipeManager(), minecraft.level.registryAccess(),
                     minecraft.level.potionBrewing());
+            JeiStations.importIfAvailable();
         }
         refreshOpenBook();
     }

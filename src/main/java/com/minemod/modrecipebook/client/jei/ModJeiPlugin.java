@@ -112,6 +112,7 @@ public class ModJeiPlugin implements IModPlugin {
     @Override
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
         runtime = jeiRuntime;
+        JeiStations.importIfAvailable();
     }
 
     @Override

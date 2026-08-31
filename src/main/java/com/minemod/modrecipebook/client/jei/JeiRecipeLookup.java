@@ -1,5 +1,8 @@
 package com.minemod.modrecipebook.client.jei;
 
+import com.minemod.modrecipebook.client.ClientUnlockedRecipes;
+import com.minemod.modrecipebook.client.RecipeCategoryConfig;
+import com.minemod.modrecipebook.recipe.ModRecipeIndex;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.drawable.IScalableDrawable;
@@ -13,6 +16,7 @@ import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -25,6 +29,7 @@ import net.neoforged.neoforge.fluids.FluidType;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,6 +50,31 @@ public final class JeiRecipeLookup {
 
     public record CategoryPage(IRecipeCategory<?> category, List<JeiRecipeBinding> recipes) {}
 
+    public static List<CategoryPage> lookupHolders(List<RecipeHolder<?>> holders) {
+        if (!ModJeiPlugin.isAvailable() || holders == null || holders.isEmpty()) {
+            return List.of();
+        }
+        Map<RecipeType<?>, IRecipeCategory<?>> categories = new LinkedHashMap<>();
+        Map<RecipeType<?>, List<JeiRecipeBinding>> grouped = new LinkedHashMap<>();
+        for (RecipeHolder<?> holder : holders) {
+            for (JeiRecipeBinding binding : resolveAll(holder)) {
+                if (!categoryAllowed(holder, binding.category())) {
+                    continue;
+                }
+                RecipeType<?> type = binding.category().getRecipeType();
+                categories.putIfAbsent(type, binding.category());
+                grouped.computeIfAbsent(type, key -> new ArrayList<>()).add(binding);
+            }
+        }
+        List<CategoryPage> pages = new ArrayList<>();
+        grouped.forEach((type, recipes) -> pages.add(new CategoryPage(categories.get(type), List.copyOf(recipes))));
+        return pages;
+    }
+
+    public static boolean sameRecipe(JeiRecipeBinding binding, RecipeHolder<?> holder) {
+        return matches(holder, binding.category(), binding.recipe());
+    }
+
     public static List<CategoryPage> lookupOutput(ItemStack result) {
         if (result == null || result.isEmpty()) {
             return List.of();
@@ -53,6 +83,24 @@ public final class JeiRecipeLookup {
     }
 
     public static List<CategoryPage> lookupFluidOutput(FluidStack fluid) {
+        List<CategoryPage> pages = fluidSources(fluid);
+        if (!RecipeCategoryConfig.requireCraftingMethod()) {
+            return pages;
+        }
+        List<CategoryPage> known = new ArrayList<>();
+        for (CategoryPage page : pages) {
+            if (catalystKnown(page.category())) {
+                known.add(page);
+            }
+        }
+        return known;
+    }
+
+    public static boolean anyFluidSource(FluidStack fluid) {
+        return !fluidSources(fluid).isEmpty();
+    }
+
+    private static List<CategoryPage> fluidSources(FluidStack fluid) {
         if (fluid == null || fluid.isEmpty()) {
             return List.of();
         }
@@ -92,9 +140,14 @@ public final class JeiRecipeLookup {
                     .toList();
             List<JeiRecipeBinding> bindings = new ArrayList<>();
             for (Object recipe : recipes) {
+                if (!unlocked(category, recipe)) {
+                    continue;
+                }
                 Optional<? extends IRecipeLayoutDrawable<?>> drawable =
                         createDrawable(recipeManager, category, recipe, emptyFocus);
                 if (drawable.isEmpty()) {
+                    com.minemod.modrecipebook.ModRecipeBook.LOGGER.info(
+                            "[mrb-diag] no drawable for category {}", category.getRecipeType().getUid());
                     continue;
                 }
                 if (requiredOutput != null && !hasFluid(drawable.get(), requiredOutput)) {
@@ -131,6 +184,9 @@ public final class JeiRecipeLookup {
             }
             List<JeiRecipeBinding> bindings = new ArrayList<>();
             for (Object recipe : recipeManager.createRecipeLookup(category.getRecipeType()).get().toList()) {
+                if (!unlocked(category, recipe)) {
+                    continue;
+                }
                 Optional<? extends IRecipeLayoutDrawable<?>> drawable =
                         createDrawable(recipeManager, category, recipe, emptyFocus);
                 if (drawable.isPresent() && hasFluid(drawable.get(), fluid)) {
@@ -162,6 +218,51 @@ public final class JeiRecipeLookup {
         return stack != null && !stack.isEmpty() && stack.getFluid().isSame(fluid);
     }
 
+    private static boolean unlocked(IRecipeCategory<?> category, Object recipe) {
+        ResourceLocation id = recipe instanceof RecipeHolder<?> holder ? holder.id() : registryName(category, recipe);
+        return id == null || ModRecipeIndex.byId(id).isEmpty() || ClientUnlockedRecipes.isUnlocked(id);
+    }
+
+    private static List<JeiRecipeBinding> resolveAll(RecipeHolder<?> holder) {
+        IRecipeManager recipeManager = ModJeiPlugin.runtime().getRecipeManager();
+        IFocusGroup focusGroup = ModJeiPlugin.runtime().getJeiHelpers().getFocusFactory().getEmptyFocusGroup();
+        List<JeiRecipeBinding> found = new ArrayList<>();
+        for (IRecipeCategory<?> category : recipeManager.createRecipeCategoryLookup().get().toList()) {
+            for (Object recipe : recipeManager.createRecipeLookup(category.getRecipeType()).get().toList()) {
+                if (!matches(holder, category, recipe)) {
+                    continue;
+                }
+                Optional<? extends IRecipeLayoutDrawable<?>> drawable =
+                        createDrawable(recipeManager, category, recipe, focusGroup);
+                if (drawable.isPresent()) {
+                    found.add(new JeiRecipeBinding(category, recipe, drawable.get()));
+                }
+                break;
+            }
+        }
+        return found;
+    }
+
+    private static boolean categoryAllowed(RecipeHolder<?> holder, IRecipeCategory<?> category) {
+        if (preferredCategory(holder, category)) {
+            return true;
+        }
+        return !RecipeCategoryConfig.requireCraftingMethod() || catalystKnown(category);
+    }
+
+    private static boolean catalystKnown(IRecipeCategory<?> category) {
+        for (ItemStack stack : ModJeiPlugin.runtime().getRecipeManager()
+                .createRecipeCatalystLookup(category.getRecipeType()).getItemStack().toList()) {
+            if (stack == null || stack.isEmpty() || stack.getItem() == Items.CRAFTING_TABLE) {
+                continue;
+            }
+            if (ClientUnlockedRecipes.isItemKnown(stack.getItem())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static Optional<JeiRecipeBinding> resolve(RecipeHolder<?> holder) {
         if (!ModJeiPlugin.isAvailable()) {
             return Optional.empty();
@@ -179,7 +280,12 @@ public final class JeiRecipeLookup {
         IRecipeManager recipeManager = ModJeiPlugin.runtime().getRecipeManager();
         IFocusGroup focusGroup = ModJeiPlugin.runtime().getJeiHelpers().getFocusFactory().getEmptyFocusGroup();
         List<IRecipeCategory<?>> categories = recipeManager.createRecipeCategoryLookup().get().toList();
+        Optional<JeiRecipeBinding> fallback = Optional.empty();
         for (IRecipeCategory<?> category : categories) {
+            boolean preferred = preferredCategory(holder, category);
+            if (!preferred && fallback.isPresent()) {
+                continue;
+            }
             RecipeType<?> type = category.getRecipeType();
             List<?> recipes = recipeManager.createRecipeLookup(type).get().toList();
             for (Object recipe : recipes) {
@@ -188,12 +294,25 @@ public final class JeiRecipeLookup {
                 }
                 Optional<? extends IRecipeLayoutDrawable<?>> drawable =
                         createDrawable(recipeManager, category, recipe, focusGroup);
-                if (drawable.isPresent()) {
-                    return Optional.of(new JeiRecipeBinding(category, recipe, drawable.get()));
+                if (drawable.isEmpty()) {
+                    continue;
                 }
+                JeiRecipeBinding binding = new JeiRecipeBinding(category, recipe, drawable.get());
+                if (preferred) {
+                    return Optional.of(binding);
+                }
+                if (fallback.isEmpty()) {
+                    fallback = Optional.of(binding);
+                }
+                break;
             }
         }
-        return Optional.empty();
+        return fallback;
+    }
+
+    private static boolean preferredCategory(RecipeHolder<?> holder, IRecipeCategory<?> category) {
+        ResourceLocation vanillaId = BuiltInRegistries.RECIPE_TYPE.getKey(holder.value().getType());
+        return vanillaId != null && vanillaId.equals(category.getRecipeType().getUid());
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

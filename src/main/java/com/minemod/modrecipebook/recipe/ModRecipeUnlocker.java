@@ -1,8 +1,10 @@
 package com.minemod.modrecipebook.recipe;
 
 import com.minemod.modrecipebook.net.UnlockRecipesPayload;
+import com.minemod.modrecipebook.net.DebugUnlockPayload;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -19,10 +21,14 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 @EventBusSubscriber(modid = com.minemod.modrecipebook.ModRecipeBook.MODID)
 public final class ModRecipeUnlocker {
+    private static final Map<ServerPlayer, Integer> swept = new WeakHashMap<>();
+
     private ModRecipeUnlocker() {}
 
     @SubscribeEvent
@@ -47,7 +53,8 @@ public final class ModRecipeUnlocker {
         if (player.tickCount % 10 != 0) {
             return;
         }
-        checkInventory(player, true, false);
+        boolean staleStations = !Integer.valueOf(ModRecipeIndex.stationsGeneration()).equals(swept.get(player));
+        checkInventory(player, true, staleStations);
     }
 
     private static void login(ServerPlayer player) {
@@ -55,12 +62,56 @@ public final class ModRecipeUnlocker {
         checkInventory(player, true, true);
     }
 
-    public static void syncAll(ServerPlayer player) {
-        Set<ResourceLocation> unlocked = player.getData(ModRecipeBookAttachments.UNLOCKED);
-        PacketDistributor.sendToPlayer(player, new UnlockRecipesPayload(List.copyOf(unlocked), true));
+    public static void debug(ServerPlayer player, byte action) {
+        switch (action) {
+            case DebugUnlockPayload.DISCOVER -> discoverAll(player);
+            case DebugUnlockPayload.RESET -> resetAll(player);
+            case DebugUnlockPayload.RETHINK -> rethinkAll(player);
+            default -> {
+            }
+        }
     }
 
-    public static void checkInventory(ServerPlayer player, boolean toast, boolean recheckKnown) {
+    private static void discoverAll(ServerPlayer player) {
+        Set<ResourceLocation> unlocked = new HashSet<>();
+        for (RecipeHolder<?> holder : ModRecipeIndex.indexed()) {
+            unlocked.add(holder.id());
+        }
+        player.setData(ModRecipeBookAttachments.UNLOCKED, unlocked);
+        Set<ResourceLocation> known = new HashSet<>(player.getData(ModRecipeBookAttachments.KNOWN_ITEMS));
+        for (Item station : ModRecipeIndex.stationItems()) {
+            known.add(BuiltInRegistries.ITEM.getKey(station));
+        }
+        PacketDistributor.sendToPlayer(player, new UnlockRecipesPayload(
+                List.copyOf(unlocked), List.copyOf(known), true));
+        player.sendSystemMessage(Component.translatable("chat.modrecipebook.debug.discover", player.getName()));
+    }
+
+    private static void resetAll(ServerPlayer player) {
+        player.setData(ModRecipeBookAttachments.UNLOCKED, new HashSet<>());
+        player.setData(ModRecipeBookAttachments.KNOWN_ITEMS, new HashSet<>());
+        syncAll(player);
+        player.sendSystemMessage(Component.translatable("chat.modrecipebook.debug.reset", player.getName()));
+    }
+
+    private static void rethinkAll(ServerPlayer player) {
+        if (UnlockOptions.requireCraftingMethod && !ModRecipeIndex.stationsReady()) {
+            player.sendSystemMessage(Component.translatable("chat.modrecipebook.debug.rethink_wait"));
+            return;
+        }
+        player.setData(ModRecipeBookAttachments.UNLOCKED, new HashSet<>());
+        checkInventory(player, false, true);
+        syncAll(player);
+        player.sendSystemMessage(Component.translatable("chat.modrecipebook.debug.rethink", player.getName()));
+    }
+
+    public static void syncAll(ServerPlayer player) {
+        Set<ResourceLocation> unlocked = player.getData(ModRecipeBookAttachments.UNLOCKED);
+        PacketDistributor.sendToPlayer(player, new UnlockRecipesPayload(
+                List.copyOf(unlocked), List.copyOf(player.getData(ModRecipeBookAttachments.KNOWN_ITEMS)), true));
+    }
+
+    public static void checkInventory(ServerPlayer player, boolean toast, boolean force) {
         Set<ResourceLocation> unlocked = player.getData(ModRecipeBookAttachments.UNLOCKED);
         Set<ResourceLocation> knownIds = player.getData(ModRecipeBookAttachments.KNOWN_ITEMS);
         List<ResourceLocation> newly = new ArrayList<>();
@@ -84,18 +135,26 @@ public final class ModRecipeUnlocker {
         if (!newlyKeys.isEmpty()) {
             player.setData(ModRecipeBookAttachments.KNOWN_ITEMS, knownIds);
         }
-        if (!recheckKnown && newlyKeys.isEmpty()) {
+        if (!force && newlyKeys.isEmpty()) {
             return;
         }
+        swept.put(player, ModRecipeIndex.stationsGeneration());
         Set<Item> knownItems = knownItemSet(knownIds);
         boolean requireAll = UnlockOptions.requireAllIngredients;
+        boolean requireMethod = UnlockOptions.requireCraftingMethod;
         RegistryAccess access = player.registryAccess();
-        Iterable<ResourceLocation> keys = recheckKnown ? List.copyOf(knownIds) : newlyKeys;
+        Iterable<ResourceLocation> keys = List.copyOf(knownIds);
         for (ResourceLocation key : keys) {
             if (BuiltInRegistries.ITEM.containsKey(key)) {
                 Item item = BuiltInRegistries.ITEM.get(key);
                 for (RecipeHolder<?> holder : ModRecipeIndex.byIngredient(item)) {
+                    if (unlocked.contains(holder.id())) {
+                        continue;
+                    }
                     if (requireAll && !ModRecipeIndex.allUnlockItemsKnown(holder, knownItems, knownIds)) {
+                        continue;
+                    }
+                    if (requireMethod && !ModRecipeIndex.stationKnown(holder, knownItems)) {
                         continue;
                     }
                     if (unlocked.add(holder.id())) {
@@ -103,11 +162,17 @@ public final class ModRecipeUnlocker {
                     }
                 }
                 for (RecipeHolder<?> holder : ModRecipeIndex.byResult(item)) {
+                    if (unlocked.contains(holder.id())) {
+                        continue;
+                    }
                     if (holder.value() instanceof BrewingMixRecipe) {
                         ItemStack result = IngredientExtractor.result(holder.value(), access);
                         if (!knownIds.contains(PotionKeys.knownId(result))) {
                             continue;
                         }
+                    }
+                    if (requireMethod && !ModRecipeIndex.stationKnown(holder, knownItems)) {
+                        continue;
                     }
                     if (unlocked.add(holder.id())) {
                         newly.add(holder.id());
@@ -115,10 +180,16 @@ public final class ModRecipeUnlocker {
                 }
             }
             for (RecipeHolder<?> holder : ModRecipeIndex.byKnownKey(key)) {
+                if (unlocked.contains(holder.id())) {
+                    continue;
+                }
                 ItemStack result = IngredientExtractor.result(holder.value(), access);
                 boolean resultKnown = PotionKeys.knownId(result).equals(key);
                 if (!resultKnown && requireAll
                         && !ModRecipeIndex.allUnlockItemsKnown(holder, knownItems, knownIds)) {
+                    continue;
+                }
+                if (requireMethod && !ModRecipeIndex.stationKnown(holder, knownItems)) {
                     continue;
                 }
                 if (unlocked.add(holder.id())) {
@@ -128,9 +199,9 @@ public final class ModRecipeUnlocker {
         }
         if (!newly.isEmpty()) {
             player.setData(ModRecipeBookAttachments.UNLOCKED, unlocked);
-            if (toast) {
-                PacketDistributor.sendToPlayer(player, new UnlockRecipesPayload(newly, false));
-            }
+        }
+        if (toast && (!newly.isEmpty() || !newlyKeys.isEmpty())) {
+            PacketDistributor.sendToPlayer(player, new UnlockRecipesPayload(newly, newlyKeys, false));
         }
     }
 

@@ -10,12 +10,14 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.List;
 
-public record UnlockRecipesPayload(List<ResourceLocation> recipes, boolean replace) implements CustomPacketPayload {
+public record UnlockRecipesPayload(List<ResourceLocation> recipes, List<ResourceLocation> known, boolean replace)
+        implements CustomPacketPayload {
     public static final Type<UnlockRecipesPayload> TYPE = new Type<>(
             ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "unlock_recipes"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, UnlockRecipesPayload> STREAM_CODEC = StreamCodec.composite(
             ResourceLocation.STREAM_CODEC.apply(ByteBufCodecs.list()), UnlockRecipesPayload::recipes,
+            ResourceLocation.STREAM_CODEC.apply(ByteBufCodecs.list()), UnlockRecipesPayload::known,
             ByteBufCodecs.BOOL, UnlockRecipesPayload::replace,
             UnlockRecipesPayload::new
     );

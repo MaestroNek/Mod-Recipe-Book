@@ -20,6 +20,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 public final class IngredientExtractor {
@@ -38,6 +39,8 @@ public final class IngredientExtractor {
         }
         // Exposure FilmDevelopingRecipe keeps the film in sourceIngredient, not getIngredients().
         reflectIngredients(recipe, "getSourceIngredient", list);
+        reflectIngredients(recipe, "getTool", list);
+        reflectIngredients(recipe, "tool", list);
         if (list.isEmpty()) {
             reflectIngredients(recipe, "getItemIngredients", list);
             reflectIngredients(recipe, "itemIngredients", list);
@@ -62,6 +65,19 @@ public final class IngredientExtractor {
 
     public static boolean hasInputs(Recipe<?> recipe) {
         return !items(recipe).isEmpty() || !fluidInputs(recipe).isEmpty();
+    }
+
+    public static int declaredItemSlots(Recipe<?> recipe) {
+        int count = 0;
+        try {
+            for (Ingredient ingredient : recipe.getIngredients()) {
+                if (ingredient != null && !ingredient.isEmpty()) {
+                    count++;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return count;
     }
 
     public static Set<Item> itemIngredients(Recipe<?> recipe) {
@@ -231,6 +247,21 @@ public final class IngredientExtractor {
         }
     }
 
+    public static List<Recipe<?>> sequencedSteps(Recipe<?> recipe) {
+        Iterable<?> steps = sequence(recipe);
+        if (steps == null) {
+            return List.of();
+        }
+        List<Recipe<?>> out = new ArrayList<>();
+        for (Object step : steps) {
+            Recipe<?> stepRecipe = unwrapRecipe(step);
+            if (stepRecipe != null) {
+                out.add(stepRecipe);
+            }
+        }
+        return out;
+    }
+
     private static Iterable<?> sequence(Recipe<?> recipe) {
         try {
             Object value = recipe.getClass().getMethod("getSequence").invoke(recipe);
@@ -295,6 +326,10 @@ public final class IngredientExtractor {
     }
 
     private static void addIngredients(Object value, List<Ingredient> out) {
+        if (value instanceof Optional<?> optional) {
+            optional.ifPresent(inner -> addIngredients(inner, out));
+            return;
+        }
         if (value instanceof Ingredient ingredient && !ingredient.isEmpty()) {
             out.add(ingredient);
         } else if (value instanceof Iterable<?> iterable) {

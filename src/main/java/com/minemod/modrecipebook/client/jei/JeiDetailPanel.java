@@ -1,5 +1,6 @@
 package com.minemod.modrecipebook.client.jei;
 
+import com.minemod.modrecipebook.client.ClientUnlockedRecipes;
 import com.minemod.modrecipebook.client.RecipeGroup;
 import com.minemod.modrecipebook.client.DeviceDetailPanel;
 import com.minemod.modrecipebook.client.ModRecipeBookComponent;
@@ -19,6 +20,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.neoforged.neoforge.fluids.FluidStack;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,21 +58,48 @@ public final class JeiDetailPanel implements DeviceDetailPanel {
     }
 
     public static JeiDetailPanel tryCreate(RecipeGroup group, int index) {
-        if (group == null) {
+        if (group == null || group.recipes().isEmpty() || !ModJeiPlugin.isAvailable()) {
             return null;
         }
-        return tryCreate(group.result(), group.recipes().isEmpty() ? null : group.recipes().getFirst());
-    }
-
-    public static JeiDetailPanel tryCreate(ItemStack result, RecipeHolder<?> fallback) {
-        if (result == null || result.isEmpty() || !ModJeiPlugin.isAvailable()) {
+        List<RecipeHolder<?>> unlocked = new ArrayList<>();
+        for (RecipeHolder<?> holder : group.recipes()) {
+            if (ClientUnlockedRecipes.isUnlocked(holder.id())) {
+                unlocked.add(holder);
+            }
+        }
+        if (unlocked.isEmpty()) {
             return null;
         }
-        List<JeiRecipeLookup.CategoryPage> pages = JeiRecipeLookup.lookupOutput(result);
+        List<JeiRecipeLookup.CategoryPage> pages = JeiRecipeLookup.lookupHolders(unlocked);
+        if (pages.isEmpty()) {
+            pages = JeiRecipeLookup.lookupOutput(group.result());
+        }
         if (pages.isEmpty()) {
             return null;
         }
-        return new JeiDetailPanel(fallback, pages, 0, 0, pages.getFirst().recipes().getFirst());
+        int preferred = Math.min(Math.max(index, 0), unlocked.size() - 1);
+        RecipeHolder<?> fallback = unlocked.get(preferred);
+        int categoryIndex = 0;
+        int recipeIndex = 0;
+        for (int c = 0; c < pages.size(); c++) {
+            List<JeiRecipeBinding> recipes = pages.get(c).recipes();
+            for (int r = 0; r < recipes.size(); r++) {
+                if (JeiRecipeLookup.sameRecipe(recipes.get(r), fallback)) {
+                    categoryIndex = c;
+                    recipeIndex = r;
+                }
+            }
+        }
+        return new JeiDetailPanel(fallback, pages, categoryIndex, recipeIndex,
+                pages.get(categoryIndex).recipes().get(recipeIndex));
+    }
+
+    public static JeiDetailPanel tryCreate(ItemStack result, RecipeHolder<?> fallback) {
+        if (fallback == null) {
+            return null;
+        }
+        ItemStack stack = result == null || result.isEmpty() ? ItemStack.EMPTY : result;
+        return tryCreate(new RecipeGroup(stack, List.of(fallback)), 0);
     }
 
     public static JeiDetailPanel tryCreateFluid(FluidStack fluid) {

@@ -43,6 +43,9 @@ public final class ContainerFillRecipes {
             Iterable<RecipeHolder<?>> existing, RegistryAccess access) {
         Set<Item> taken = new HashSet<>();
         for (RecipeHolder<?> holder : existing) {
+            if (IngredientExtractor.fluidInputs(holder.value()).isEmpty()) {
+                continue;
+            }
             ItemStack result = IngredientExtractor.result(holder.value(), access);
             if (!result.isEmpty()) {
                 taken.add(result.getItem());

@@ -28,9 +28,9 @@ public class CategorySettingsScreen extends Screen {
     private static final int SIDE_PAD = (ARROW_SLOT - SCROLLBAR_W) / 2;
     private static final int PAD = 6;
     private static final int LIST_BG = 0x80000000;
-    private static final int DIVIDER_Y = 96;
-    private static final int ADD_BTN_Y = 106;
-    private static final int HEADER_TEXT_Y = 112;
+    private static final int DIVIDER_Y = 116;
+    private static final int ADD_BTN_Y = 126;
+    private static final int HEADER_TEXT_Y = 132;
     private static final ResourceLocation SCROLLER =
             ResourceLocation.withDefaultNamespace("widget/scroller");
     private static final ResourceLocation SCROLLER_BG =
@@ -53,7 +53,7 @@ public class CategorySettingsScreen extends Screen {
     @Override
     protected void init() {
         listLeft = (width - panelWidth()) / 2 + ARROW_SLOT + SIDE_PAD;
-        listTop = 130 + PAD;
+        listTop = 150 + PAD;
         int limit = height - 32 - PAD;
         visibleRows = Math.max(1, (limit - listTop - ROW_BTN) / ROW + 1);
         listBottom = listTop + (visibleRows - 1) * ROW + ROW_BTN;
@@ -75,6 +75,12 @@ public class CategorySettingsScreen extends Screen {
                 .selected(RecipeCategoryConfig.requireAllIngredients())
                 .tooltip(Tooltip.create(Component.translatable("gui.modrecipebook.config.require_all.tooltip")))
                 .onValueChange((box, value) -> RecipeCategoryConfig.setRequireAllIngredients(value))
+                .build());
+        addRenderableWidget(Checkbox.builder(Component.translatable("gui.modrecipebook.config.require_method"), font)
+                .pos(panelLeft(), 88)
+                .selected(RecipeCategoryConfig.requireCraftingMethod())
+                .tooltip(Tooltip.create(Component.translatable("gui.modrecipebook.config.require_method.tooltip")))
+                .onValueChange((box, value) -> RecipeCategoryConfig.setRequireCraftingMethod(value))
                 .build());
         List<RecipeCategoryConfig.Entry> categories = RecipeCategoryConfig.all();
         int shown = Math.min(visibleRows, Math.max(0, rowCount() - listScroll));
@@ -109,6 +115,10 @@ public class CategorySettingsScreen extends Screen {
                     .bounds(listLeft + 252, row, 48, 20)
                     .build());
         }
+        addRenderableWidget(Button.builder(Component.translatable("gui.modrecipebook.config.debug"), b ->
+                minecraft.setScreen(new DebugSettingsScreen(this)))
+                .bounds(width - 8 - 60, 6, 60, 20)
+                .build());
         addRenderableWidget(Button.builder(Component.translatable("gui.modrecipebook.config.add"), b ->
                 minecraft.setScreen(new CategoryEditScreen(this, null)))
                 .bounds(panelRight() - 150, ADD_BTN_Y, 150, 20)

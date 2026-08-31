@@ -2,6 +2,7 @@ package com.minemod.modrecipebook.client;
 
 import com.minemod.modrecipebook.ModRecipeBook;
 import com.minemod.modrecipebook.client.jei.JeiDetailPanel;
+import com.minemod.modrecipebook.client.jei.JeiRecipeLookup;
 import com.minemod.modrecipebook.client.layout.RecipeLayout;
 import com.minemod.modrecipebook.client.layout.RecipeLayouts;
 import com.minemod.modrecipebook.net.PlaceBrewingPayload;
@@ -650,26 +651,11 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         }
         ItemStack focused = stack.copyWithCount(1);
         RecipeGroup group = findUnlockedGroup(focused);
-        RecipeHolder<?> fallback = group == null ? null : group.primary();
-        JeiDetailPanel panel = JeiDetailPanel.tryCreate(focused, fallback);
-        if (panel == null) {
+        if (group == null) {
             ItemStack plain = new ItemStack(stack.getItem());
             if (!ItemStack.isSameItemSameComponents(focused, plain)) {
-                panel = JeiDetailPanel.tryCreate(plain, fallback);
+                group = findUnlockedGroup(plain);
             }
-        }
-        if (panel != null) {
-            if (group != null || panel.anyRecipe(this::isRecipeKnown)) {
-                emptyDetail = null;
-                jeiDetail = panel;
-                detail = panel.recipe();
-                detailGroup = group;
-                detailIndex = 0;
-                refreshLayout();
-            } else {
-                showEmptyDetail("gui.modrecipebook.unknown_recipe");
-            }
-            return;
         }
         if (group != null) {
             openDetail(group, group.primary());
@@ -691,7 +677,9 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             refreshLayout();
             return;
         }
-        showEmptyDetail("gui.modrecipebook.no_recipe");
+        showEmptyDetail(JeiRecipeLookup.anyFluidSource(fluid)
+                ? "gui.modrecipebook.unknown_recipe"
+                : "gui.modrecipebook.no_recipe");
     }
 
     private boolean isRecipeKnown(Object recipe) {
@@ -950,6 +938,9 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     public void recipesUpdated() {
         if (visible) {
             updateCollections(false);
+            if (detailGroup != null) {
+                openDetail(detailGroup, detail != null ? detail : detailGroup.primary());
+            }
         }
     }
 
@@ -1013,7 +1004,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             return;
         }
         for (RecipeHolder<?> holder : minecraft.level.getRecipeManager().getRecipes()) {
-            if (!canPlaceIntoMenu(holder)) {
+            if (!isRecipeKnown(holder) || !canPlaceIntoMenu(holder)) {
                 continue;
             }
             ItemStack result = IngredientExtractor.result(holder.value(), minecraft.level.registryAccess());

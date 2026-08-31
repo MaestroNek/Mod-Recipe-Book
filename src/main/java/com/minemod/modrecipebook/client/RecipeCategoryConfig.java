@@ -43,6 +43,7 @@ public final class RecipeCategoryConfig {
     private static boolean hideJei = true;
     private static boolean hideVanillaBook = true;
     private static boolean requireAllIngredients = true;
+    private static boolean requireCraftingMethod = true;
     private static final Map<String, Integer> BOOK_BUTTON_LAYOUT = new HashMap<>();
     private static final int DEFAULTS = 1;
 
@@ -103,12 +104,23 @@ public final class RecipeCategoryConfig {
         save();
     }
 
+    public static boolean requireCraftingMethod() {
+        return requireCraftingMethod;
+    }
+
+    public static void setRequireCraftingMethod(boolean value) {
+        requireCraftingMethod = value;
+        UnlockOptions.requireCraftingMethod = value;
+        save();
+    }
+
     public static void load() {
         CATEGORIES.clear();
         BOOK_BUTTON_LAYOUT.clear();
         hideJei = true;
         hideVanillaBook = true;
         requireAllIngredients = true;
+        requireCraftingMethod = true;
         try {
             if (!Files.exists(FILE)) {
                 CATEGORIES.add(defaultMinecraft());
@@ -133,6 +145,9 @@ public final class RecipeCategoryConfig {
                 }
                 if (data.requireAllIngredients != null) {
                     requireAllIngredients = data.requireAllIngredients;
+                }
+                if (data.requireCraftingMethod != null) {
+                    requireCraftingMethod = data.requireCraftingMethod;
                 }
                 if (data.bookButtonLayout != null) {
                     for (Map.Entry<String, Integer> entry : data.bookButtonLayout.entrySet()) {
@@ -177,6 +192,7 @@ public final class RecipeCategoryConfig {
             ModRecipeBook.LOGGER.warn("Failed to read category config", e);
         } finally {
             UnlockOptions.requireAllIngredients = requireAllIngredients;
+            UnlockOptions.requireCraftingMethod = requireCraftingMethod;
         }
     }
 
@@ -188,6 +204,7 @@ public final class RecipeCategoryConfig {
                 data.hideJei = hideJei;
                 data.hideVanillaBook = hideVanillaBook;
                 data.requireAllIngredients = requireAllIngredients;
+                data.requireCraftingMethod = requireCraftingMethod;
                 data.bookButtonLayout = BOOK_BUTTON_LAYOUT;
                 data.defaults = DEFAULTS;
                 data.categories = CATEGORIES;
@@ -299,6 +316,7 @@ public final class RecipeCategoryConfig {
         Boolean hideJei;
         Boolean hideVanillaBook;
         Boolean requireAllIngredients;
+        Boolean requireCraftingMethod;
         Map<String, Boolean> bookButtonsHorizontal;
         Map<String, Integer> bookButtonLayout;
         Integer defaults;

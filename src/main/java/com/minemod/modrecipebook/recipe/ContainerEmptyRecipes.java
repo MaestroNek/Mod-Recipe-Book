@@ -19,7 +19,7 @@ import java.util.Set;
 public final class ContainerEmptyRecipes {
     private ContainerEmptyRecipes() {}
 
-    public static void addProducers(Map<ResourceLocation, LinkedHashSet<ModRecipeIndex.FluidProducer>> producers) {
+    public static void addContainers(Map<ResourceLocation, LinkedHashSet<Item>> containers) {
         for (Fluid fluid : BuiltInRegistries.FLUID) {
             if (fluid == Fluids.EMPTY) {
                 continue;
@@ -33,7 +33,7 @@ public final class ContainerEmptyRecipes {
             }
             Item bucket = fluid.getBucket();
             if (bucket != Items.AIR && bucket != Items.BUCKET) {
-                add(producers, fluid, bucket);
+                add(containers, fluid, bucket);
             }
         }
         for (Item item : BuiltInRegistries.ITEM) {
@@ -42,18 +42,16 @@ public final class ContainerEmptyRecipes {
             }
             FluidStack extracted = drain(item);
             if (!extracted.isEmpty()) {
-                add(producers, extracted.getFluid(), item);
+                add(containers, extracted.getFluid(), item);
             }
         }
     }
 
-    private static void add(Map<ResourceLocation, LinkedHashSet<ModRecipeIndex.FluidProducer>> producers,
-                            Fluid fluid, Item item) {
+    private static void add(Map<ResourceLocation, LinkedHashSet<Item>> containers, Fluid fluid, Item item) {
         if (fluid == null || fluid == Fluids.EMPTY || item == Items.AIR) {
             return;
         }
-        producers.computeIfAbsent(BuiltInRegistries.FLUID.getKey(fluid), k -> new LinkedHashSet<>())
-                .add(new ModRecipeIndex.FluidProducer(Set.of(item), Set.of()));
+        containers.computeIfAbsent(BuiltInRegistries.FLUID.getKey(fluid), k -> new LinkedHashSet<>()).add(item);
     }
 
     private static FluidStack drain(Item item) {

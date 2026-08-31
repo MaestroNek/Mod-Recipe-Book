@@ -10,5 +10,6 @@ public final class ModNetworking {
         PayloadRegistrar registrar = event.registrar("1");
         registrar.playToClient(UnlockRecipesPayload.TYPE, UnlockRecipesPayload.STREAM_CODEC, UnlockRecipesPayload::handle);
         registrar.playToServer(PlaceBrewingPayload.TYPE, PlaceBrewingPayload.STREAM_CODEC, PlaceBrewingPayload::handle);
+        registrar.playToServer(DebugUnlockPayload.TYPE, DebugUnlockPayload.STREAM_CODEC, DebugUnlockPayload::handle);
     }
 }
