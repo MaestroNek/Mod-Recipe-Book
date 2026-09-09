@@ -45,5 +45,10 @@
   "chat.modrecipebook.debug.reset": "%s сбросил все рецепты",
   "chat.modrecipebook.debug.rethink": "%s переоткрыл рецепты",
   "chat.modrecipebook.debug.rethink_wait": "Способы крафта ещё загружаются, попробуй чуть позже",
-  "gui.modrecipebook.layout.brewing": "Варка"
+  "gui.modrecipebook.layout.brewing": "Варка",
+  "gui.modrecipebook.bookmarks": "Закладки",
+  "gui.modrecipebook.bookmarks.add": "Добавить в закладки",
+  "gui.modrecipebook.bookmarks.remove": "Убрать из закладок",
+  "gui.modrecipebook.bookmarks.empty_before": "Нажми",
+  "gui.modrecipebook.bookmarks.empty_after": ", чтобы добавить предмет в закладки"
 }

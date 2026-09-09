@@ -15,6 +15,11 @@ public class ModRecipeTabButton extends AbstractWidget {
             ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/tab_right");
     private static final ResourceLocation TAB_SELECTED =
             ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/tab_right_selected");
+    private static final ResourceLocation TAB_BOOKMARK =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/tab_right_bookmark");
+    private static final ResourceLocation TAB_SELECTED_BOOKMARK =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/tab_right_selected_bookmark");
+    private static boolean bookmarkLook;
 
     private final String categoryId;
     private final ItemStack icon;
@@ -38,9 +43,15 @@ public class ModRecipeTabButton extends AbstractWidget {
         this.selected = selected;
     }
 
+    public static void setBookmarkLook(boolean value) {
+        bookmarkLook = value;
+    }
+
     @Override
     protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        ResourceLocation sprite = selected ? TAB_SELECTED : TAB;
+        ResourceLocation sprite = bookmarkLook
+                ? (selected ? TAB_SELECTED_BOOKMARK : TAB_BOOKMARK)
+                : (selected ? TAB_SELECTED : TAB);
         graphics.blitSprite(sprite, getX(), getY(), width, height);
         graphics.renderFakeItem(icon, getX() + 9, getY() + 5);
     }

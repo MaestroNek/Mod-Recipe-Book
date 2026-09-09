@@ -1,6 +1,7 @@
 package com.minemod.modrecipebook.client;
 
 import com.minemod.modrecipebook.ModRecipeBook;
+import com.minemod.modrecipebook.recipe.PotionKeys;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
@@ -19,6 +20,10 @@ public class ModRecipeButton extends AbstractWidget {
             ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/slot_many_craftable");
     private static final ResourceLocation SLOT_MANY_UNCRAFTABLE =
             ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/slot_many_uncraftable");
+    private static final ResourceLocation SLOT_BOOKMARK =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/slot_bookmarked");
+    private static final ResourceLocation SLOT_BOOKMARK_UNCRAFTABLE =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/slot_bookmarked_uncraftable");
 
     private RecipeGroup group;
     private boolean craftable;
@@ -76,6 +81,12 @@ public class ModRecipeButton extends AbstractWidget {
         graphics.blitSprite(sprite, getX(), getY(), width, height);
         ItemStack result = group.result();
         graphics.renderItem(result, getX() + 4, getY() + 4);
+        if (RecipeBookmarks.contains(PotionKeys.itemKey(result))) {
+            graphics.pose().pushPose();
+            graphics.pose().translate(0.0F, 0.0F, 200.0F);
+            graphics.blitSprite(craftable ? SLOT_BOOKMARK : SLOT_BOOKMARK_UNCRAFTABLE, getX(), getY(), width, height);
+            graphics.pose().popPose();
+        }
     }
 
     @Override

@@ -5,6 +5,7 @@ import com.minemod.modrecipebook.client.jei.JeiDetailPanel;
 import com.minemod.modrecipebook.client.jei.JeiRecipeLookup;
 import com.minemod.modrecipebook.client.layout.RecipeLayout;
 import com.minemod.modrecipebook.client.layout.RecipeLayouts;
+import com.minemod.modrecipebook.net.BookmarkPayload;
 import com.minemod.modrecipebook.net.PlaceBrewingPayload;
 import com.minemod.modrecipebook.recipe.BrewingMixRecipe;
 import com.minemod.modrecipebook.recipe.BrewingRecipes;
@@ -27,6 +28,7 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.StackedContents;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -56,7 +58,26 @@ import java.util.function.Predicate;
 
 public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     public static final ResourceLocation TEXTURE = ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "textures/gui/recipe_book.png");
+    public static final ResourceLocation TEXTURE_BOOKMARK = ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "textures/gui/recipe_book_bookmark.png");
     public static final ResourceLocation DETAIL_TEXTURE = ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "textures/gui/recipe_book_detail.png");
+    private static final ResourceLocation BOOKMARK =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/bookmark");
+    private static final ResourceLocation BOOKMARK_HOVER_CLOSED =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/bookmark_hovered_closed");
+    private static final ResourceLocation BOOKMARK_HOVER_OPEN =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/bookmark_hovered_open");
+    private static final ResourceLocation BOOKMARK_ACTIVE =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/bookmark_active");
+    private static final ResourceLocation ITEM_BOOKMARK =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/item_bookmark");
+    private static final ResourceLocation ITEM_BOOKMARK_HOVER =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/item_bookmark_highlighted");
+    private static final ResourceLocation ITEM_BOOKMARK_ADDED =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/item_bookmark_added");
+    private static final ResourceLocation ITEM_BOOKMARK_ADDED_HOVER =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/item_bookmark_added_highlighted");
+    private static final ResourceLocation MOUSE_MIDDLE =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/mouse_middle");
     public static final WidgetSprites BUTTON_SPRITES = new WidgetSprites(
             ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/button"),
             ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/button_highlighted")
@@ -77,8 +98,13 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     private static final int ARROW_W = 17;
     private static final int ARROW_H = 12;
     private static final int TAB_ARROW_GAP = 3;
+    private static final int BOOKMARK_W = 12;
+    private static final int BOOKMARK_H = 24;
+    private static final int ITEM_BOOKMARK_W = 11;
+    private static final int ITEM_BOOKMARK_H = 14;
     private static final Map<String, Boolean> OPEN = new HashMap<>();
     private static final Map<String, Boolean> FILTER = new HashMap<>();
+    private static final Map<String, Boolean> BOOKMARK_MODE = new HashMap<>();
     private static final Component SEARCH_HINT = Component.translatable("gui.recipebook.search_hint")
             .withStyle(ChatFormatting.ITALIC, ChatFormatting.GRAY);
 
@@ -111,6 +137,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     private int detailIndex;
     private DeviceDetailPanel jeiDetail;
     private Component emptyDetail;
+    private boolean bookmarkMode;
 
     public void init(int width, int height, Minecraft minecraft, boolean widthTooNarrow, AbstractContainerMenu menu,
                      AbstractContainerScreen<?> screen, RecipeBookComponent vanilla) {
@@ -124,6 +151,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         this.vanilla = vanilla;
         this.visible = OPEN.getOrDefault(bookKey, false);
         this.filteringCraftable = FILTER.getOrDefault(bookKey, false);
+        this.bookmarkMode = BOOKMARK_MODE.getOrDefault(bookKey, false);
         if (this.visible && vanilla != null && vanilla.isVisible()) {
             vanilla.toggleVisibility();
         }
@@ -148,7 +176,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             backButton.visible = detail != null || emptyDetail != null;
             backButton.setPosition(bookX + (emptyDetail != null ? 6 : 8), bookY + (emptyDetail != null ? 4 : 6));
             if (searchBox != null) {
-                searchBox.setPosition(bookX + 25, bookY + 14);
+                searchBox.setPosition(bookX + 25, bookY + 13);
             }
             if (filterButton != null) {
                 filterButton.setPosition(bookX + 110, bookY + 12);
@@ -179,19 +207,14 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         }
         fillCraftSlots();
         String search = searchBox != null ? searchBox.getValue() : "";
-        searchBox = new EditBox(minecraft.font, bookX + 25, bookY + 14, 80, 14, SEARCH_HINT);
+        searchBox = new EditBox(minecraft.font, bookX + 25, bookY + 13, 80, 14, SEARCH_HINT);
         searchBox.setMaxLength(50);
         searchBox.setVisible(true);
         searchBox.setTextColor(0xFFFFFF);
         searchBox.setValue(search);
         searchBox.setHint(SEARCH_HINT);
         filterButton = new StateSwitchingButton(bookX + 110, bookY + 12, 26, 16, filteringCraftable);
-        filterButton.initTextureValues(new WidgetSprites(
-                ResourceLocation.withDefaultNamespace("recipe_book/filter_enabled"),
-                ResourceLocation.withDefaultNamespace("recipe_book/filter_disabled"),
-                ResourceLocation.withDefaultNamespace("recipe_book/filter_enabled_highlighted"),
-                ResourceLocation.withDefaultNamespace("recipe_book/filter_disabled_highlighted")
-        ));
+        applyFilterSprites();
         backButton = new StateSwitchingButton(bookX + 8, bookY + 6, 12, 17, true);
         backButton.initTextureValues(new WidgetSprites(
                 ResourceLocation.withDefaultNamespace("recipe_book/page_backward"),
@@ -202,6 +225,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             jeiDetail.initButtons(bookX, bookY, panelHeight());
         }
         rebuildTabs();
+        ModRecipeTabButton.setBookmarkLook(bookmarkChrome());
         page.init(minecraft, bookX, bookY);
         updateCollections(true);
     }
@@ -339,6 +363,9 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         String name = up
                 ? (hover ? "recipe_book/page_up_highlighted" : "recipe_book/page_up")
                 : (hover ? "recipe_book/page_down_highlighted" : "recipe_book/page_down");
+        if (bookmarkChrome()) {
+            name = name + "_bookmark";
+        }
         graphics.blitSprite(ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, name), x, y, ARROW_W, ARROW_H);
     }
 
@@ -456,6 +483,8 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         }
         graphics.pose().pushPose();
         graphics.pose().translate(0.0F, 0.0F, 100.0F);
+        ModRecipeTabButton.setBookmarkLook(bookmarkChrome());
+        page.setBookmarkLook(bookmarkChrome());
         if (jeiDetail != null) {
             jeiDetail.render(graphics, mouseX, mouseY, partialTick);
         } else if (emptyDetail != null) {
@@ -467,7 +496,8 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             int textX = bookX + (w - minecraft.font.width(emptyDetail)) / 2;
             graphics.drawString(minecraft.font, emptyDetail, textX, bookY + h / 2 - 4, 0x404040, false);
         } else {
-            graphics.blit(TEXTURE, bookX, bookY, 1, 1, IMAGE_WIDTH, IMAGE_HEIGHT);
+            graphics.blit(bookmarkChrome() ? TEXTURE_BOOKMARK : TEXTURE,
+                    bookX, bookY, 1, 1, IMAGE_WIDTH, IMAGE_HEIGHT);
             if (detail != null) {
                 backButton.visible = true;
                 backButton.render(graphics, mouseX, mouseY, partialTick);
@@ -479,9 +509,15 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
                     searchBox.render(graphics, mouseX, mouseY, partialTick);
                 }
                 filterButton.render(graphics, mouseX, mouseY, partialTick);
-                page.render(graphics, mouseX, mouseY, partialTick);
+                if (bookmarkMode && page.isEmpty()) {
+                    renderBookmarkHint(graphics);
+                } else {
+                    page.render(graphics, mouseX, mouseY, partialTick);
+                }
             }
         }
+        renderBookmarkButton(graphics, mouseX, mouseY);
+        renderItemBookmarkButton(graphics, mouseX, mouseY);
         for (ModRecipeTabButton tab : tabs) {
             if (tab.visible) {
                 tab.render(graphics, mouseX, mouseY, partialTick);
@@ -500,12 +536,20 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         if (!visible) {
             return;
         }
+        if (overItemBookmark(mouseX, mouseY)) {
+            graphics.renderTooltip(minecraft.font, Component.translatable(
+                    itemBookmarked() ? "gui.modrecipebook.bookmarks.remove" : "gui.modrecipebook.bookmarks.add"
+            ), mouseX, mouseY);
+            return;
+        }
         if (jeiDetail != null) {
             jeiDetail.renderOverlays(graphics, mouseX, mouseY);
         } else if (detail != null) {
             RecipeLayouts.of(detail).renderTooltip(graphics, bookX, bookY, detail, mouseX, mouseY);
         } else if (emptyDetail == null) {
-            page.renderTooltip(graphics, mouseX, mouseY);
+            if (!(bookmarkMode && page.isEmpty())) {
+                page.renderTooltip(graphics, mouseX, mouseY);
+            }
             if (filterButton.isHovered()) {
                 graphics.renderTooltip(minecraft.font, Component.translatable(
                         filteringCraftable ? "gui.modrecipebook.filter.craftable" : "gui.modrecipebook.filter.all"
@@ -516,6 +560,9 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             if (tab.visible) {
                 tab.renderTooltip(graphics, mouseX, mouseY);
             }
+        }
+        if (overBookmark(mouseX, mouseY)) {
+            graphics.renderTooltip(minecraft.font, Component.translatable("gui.modrecipebook.bookmarks"), mouseX, mouseY);
         }
     }
 
@@ -529,6 +576,15 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (!visible) {
             return false;
+        }
+        if (button == 0 && overBookmark(mouseX, mouseY)) {
+            toggleBookmarkMode();
+            return true;
+        }
+        if (button == 0 && overItemBookmark(mouseX, mouseY)) {
+            PacketDistributor.sendToServer(new BookmarkPayload(itemKey(detailGroup.result())));
+            playClick();
+            return true;
         }
         if (button == 0) {
             if (tabOverflow()) {
@@ -606,6 +662,11 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         }
         if (button != 0) {
             ModRecipeButton hovered = page.hovered(mouseX, mouseY);
+            if (button == 2 && hovered != null && hovered.group() != null) {
+                PacketDistributor.sendToServer(new BookmarkPayload(itemKey(hovered.group().result())));
+                playClick();
+                return true;
+            }
             if (button == 1 && hovered != null && hovered.group() != null) {
                 RecipeHolder<?> preferred = placeableRecipe(hovered.group());
                 openDetail(hovered.group(), preferred != null ? preferred : hovered.recipe());
@@ -925,7 +986,8 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
                 return true;
             }
         }
-        return tabOverflow() && (overTabArrow(mouseX, mouseY, true) || overTabArrow(mouseX, mouseY, false));
+        return overBookmark(mouseX, mouseY)
+                || (tabOverflow() && (overTabArrow(mouseX, mouseY, true) || overTabArrow(mouseX, mouseY, false)));
     }
 
     public void slotClicked(Slot slot) {
@@ -941,6 +1003,12 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             if (detailGroup != null) {
                 openDetail(detailGroup, detail != null ? detail : detailGroup.primary());
             }
+        }
+    }
+
+    public void bookmarksUpdated() {
+        if (visible && bookmarkMode) {
+            updateCollections(false);
         }
     }
 
@@ -986,6 +1054,9 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         }
         addPlaceableRecipes(grouped);
         List<RecipeGroup> collections = new ArrayList<>(grouped.values());
+        if (bookmarkMode) {
+            collections.removeIf(group -> !RecipeBookmarks.contains(itemKey(group.result())));
+        }
         if (filteringCraftable) {
             collections.removeIf(group -> {
                 for (RecipeHolder<?> holder : group.recipes()) {
@@ -1040,5 +1111,130 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             return false;
         }
         return IngredientExtractor.canCraft(holder.value(), minecraft.player.getInventory(), stackedContents);
+    }
+
+    private boolean bookmarkChrome() {
+        return bookmarkMode && detail == null && jeiDetail == null && emptyDetail == null;
+    }
+
+    private void toggleBookmarkMode() {
+        if (bookmarkChrome()) {
+            bookmarkMode = false;
+        } else {
+            bookmarkMode = true;
+        }
+        if (menu != null) {
+            BOOKMARK_MODE.put(bookKey, bookmarkMode);
+        }
+        closeDetail();
+        ModRecipeTabButton.setBookmarkLook(bookmarkChrome());
+        applyFilterSprites();
+        updateCollections(true);
+        playClick();
+    }
+
+    private void applyFilterSprites() {
+        if (filterButton == null) {
+            return;
+        }
+        if (bookmarkChrome()) {
+            filterButton.initTextureValues(new WidgetSprites(
+                    ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/filter_enabled_bookmark"),
+                    ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/filter_disabled_bookmark"),
+                    ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/filter_enabled_highlighted_bookmark"),
+                    ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/filter_disabled_highlighted_bookmark")
+            ));
+            return;
+        }
+        filterButton.initTextureValues(new WidgetSprites(
+                ResourceLocation.withDefaultNamespace("recipe_book/filter_enabled"),
+                ResourceLocation.withDefaultNamespace("recipe_book/filter_disabled"),
+                ResourceLocation.withDefaultNamespace("recipe_book/filter_enabled_highlighted"),
+                ResourceLocation.withDefaultNamespace("recipe_book/filter_disabled_highlighted")
+        ));
+    }
+
+    private void renderBookmarkButton(GuiGraphics graphics, int mouseX, int mouseY) {
+        boolean hover = overBookmark(mouseX, mouseY);
+        ResourceLocation sprite = bookmarkChrome()
+                ? (hover ? BOOKMARK_HOVER_OPEN : BOOKMARK_ACTIVE)
+                : (hover ? BOOKMARK_HOVER_CLOSED : BOOKMARK);
+        graphics.blitSprite(sprite, bookmarkX(), bookmarkY(), BOOKMARK_W, BOOKMARK_H);
+    }
+
+    private void renderBookmarkHint(GuiGraphics graphics) {
+        int max = IMAGE_WIDTH - 28;
+        int iconW = 8;
+        int iconH = 11;
+        int gap = 3;
+        int color = 0xE0D0D0;
+        Component before = Component.translatable("gui.modrecipebook.bookmarks.empty_before");
+        java.util.List<FormattedCharSequence> rest = minecraft.font.split(
+                Component.translatable("gui.modrecipebook.bookmarks.empty_after"), max);
+        int lineH = 10;
+        int totalH = iconH + 4 + rest.size() * lineH;
+        int y = bookY + (IMAGE_HEIGHT - totalH) / 2;
+        int line1 = minecraft.font.width(before) + gap + iconW;
+        int x = bookX + (IMAGE_WIDTH - line1) / 2;
+        int textY = y + (iconH - 8) / 2;
+        graphics.drawString(minecraft.font, before, x, textY, color, false);
+        x += minecraft.font.width(before) + gap;
+        graphics.blitSprite(MOUSE_MIDDLE, x, y, iconW, iconH);
+        y += iconH + 4;
+        for (FormattedCharSequence line : rest) {
+            int w = minecraft.font.width(line);
+            graphics.drawString(minecraft.font, line, bookX + (IMAGE_WIDTH - w) / 2, y, color, false);
+            y += lineH;
+        }
+    }
+
+    private boolean overBookmark(double mouseX, double mouseY) {
+        int x = bookmarkX();
+        int y = bookmarkY();
+        return mouseX >= x && mouseX < x + BOOKMARK_W && mouseY >= y && mouseY < y + BOOKMARK_H;
+    }
+
+    private int bookmarkX() {
+        return bookX + panelWidth() - BOOKMARK_W - 7;
+    }
+
+    private int bookmarkY() {
+        return bookY + IMAGE_HEIGHT - BOOKMARK_H / 2 + 6;
+    }
+
+    private void renderItemBookmarkButton(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (!itemDetailBookmark()) {
+            return;
+        }
+        boolean hover = overItemBookmark(mouseX, mouseY);
+        ResourceLocation sprite = itemBookmarked()
+                ? (hover ? ITEM_BOOKMARK_ADDED_HOVER : ITEM_BOOKMARK_ADDED)
+                : (hover ? ITEM_BOOKMARK_HOVER : ITEM_BOOKMARK);
+        graphics.blitSprite(sprite, itemBookmarkX(), itemBookmarkY(), ITEM_BOOKMARK_W, ITEM_BOOKMARK_H);
+    }
+
+    private boolean itemDetailBookmark() {
+        return detailGroup != null;
+    }
+
+    private boolean itemBookmarked() {
+        return RecipeBookmarks.contains(itemKey(detailGroup.result()));
+    }
+
+    private boolean overItemBookmark(double mouseX, double mouseY) {
+        if (!itemDetailBookmark()) {
+            return false;
+        }
+        int x = itemBookmarkX();
+        int y = itemBookmarkY();
+        return mouseX >= x && mouseX < x + ITEM_BOOKMARK_W && mouseY >= y && mouseY < y + ITEM_BOOKMARK_H;
+    }
+
+    private int itemBookmarkX() {
+        return bookX + panelWidth() - ITEM_BOOKMARK_W - (jeiDetail != null ? 6 : 8);
+    }
+
+    private int itemBookmarkY() {
+        return bookY + (jeiDetail != null ? 4 : 6);
     }
 }

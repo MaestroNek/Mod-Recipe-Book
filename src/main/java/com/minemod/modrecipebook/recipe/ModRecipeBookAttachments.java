@@ -9,6 +9,7 @@ import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -18,6 +19,9 @@ public final class ModRecipeBookAttachments {
 
     public static final Codec<Set<ResourceLocation>> IDS_CODEC =
             ResourceLocation.CODEC.listOf().xmap(HashSet::new, ArrayList::new);
+
+    public static final Codec<Set<String>> KEYS_CODEC =
+            Codec.STRING.listOf().xmap(LinkedHashSet::new, ArrayList::new);
 
     public static final Supplier<AttachmentType<Set<ResourceLocation>>> UNLOCKED = ATTACHMENT_TYPES.register(
             "unlocked_recipes",
@@ -31,6 +35,14 @@ public final class ModRecipeBookAttachments {
             "known_items",
             () -> AttachmentType.builder(() -> (Set<ResourceLocation>) new HashSet<ResourceLocation>())
                     .serialize(IDS_CODEC)
+                    .copyOnDeath()
+                    .build()
+    );
+
+    public static final Supplier<AttachmentType<Set<String>>> BOOKMARKS = ATTACHMENT_TYPES.register(
+            "bookmarks",
+            () -> AttachmentType.builder(() -> (Set<String>) new LinkedHashSet<String>())
+                    .serialize(KEYS_CODEC)
                     .copyOnDeath()
                     .build()
     );

@@ -25,23 +25,35 @@ public class ModRecipePage {
     private int x;
     private int y;
     private Minecraft minecraft;
+    private boolean bookmarkLook;
 
     public ModRecipePage() {
         for (int i = 0; i < PER_PAGE; i++) {
             buttons.add(new ModRecipeButton());
         }
-        WidgetSprites forwardSprites = new WidgetSprites(
-                ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/page_forward"),
-                ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/page_forward_highlighted")
-        );
-        WidgetSprites backSprites = new WidgetSprites(
-                ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/page_backward"),
-                ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/page_backward_highlighted")
-        );
         forward = new StateSwitchingButton(0, 0, 12, 17, false);
         back = new StateSwitchingButton(0, 0, 12, 17, true);
-        forward.initTextureValues(forwardSprites);
-        back.initTextureValues(backSprites);
+        applySprites(false);
+    }
+
+    public void setBookmarkLook(boolean bookmark) {
+        if (bookmarkLook == bookmark) {
+            return;
+        }
+        bookmarkLook = bookmark;
+        applySprites(bookmark);
+    }
+
+    private void applySprites(boolean bookmark) {
+        String suffix = bookmark ? "_bookmark" : "";
+        forward.initTextureValues(new WidgetSprites(
+                ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/page_forward" + suffix),
+                ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/page_forward_highlighted" + suffix)
+        ));
+        back.initTextureValues(new WidgetSprites(
+                ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/page_backward" + suffix),
+                ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/page_backward_highlighted" + suffix)
+        ));
     }
 
     public void init(Minecraft minecraft, int x, int y) {
@@ -149,6 +161,10 @@ public class ModRecipePage {
             return true;
         }
         return false;
+    }
+
+    public boolean isEmpty() {
+        return collections.isEmpty();
     }
 
     public ModRecipeButton hovered(double mouseX, double mouseY) {

@@ -45,5 +45,10 @@
   "chat.modrecipebook.debug.reset": "%s reset all recipes",
   "chat.modrecipebook.debug.rethink": "%s rethought all recipes",
   "chat.modrecipebook.debug.rethink_wait": "Crafting stations are still loading, try again in a moment",
-  "gui.modrecipebook.layout.brewing": "Brewing"
+  "gui.modrecipebook.layout.brewing": "Brewing",
+  "gui.modrecipebook.bookmarks": "Bookmarks",
+  "gui.modrecipebook.bookmarks.add": "Add to bookmarks",
+  "gui.modrecipebook.bookmarks.remove": "Remove from bookmarks",
+  "gui.modrecipebook.bookmarks.empty_before": "Press",
+  "gui.modrecipebook.bookmarks.empty_after": " to add item to bookmarks"
 }

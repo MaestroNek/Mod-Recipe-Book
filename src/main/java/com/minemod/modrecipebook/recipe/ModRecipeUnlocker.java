@@ -1,5 +1,6 @@
 package com.minemod.modrecipebook.recipe;
 
+import com.minemod.modrecipebook.net.BookmarkSyncPayload;
 import com.minemod.modrecipebook.net.UnlockRecipesPayload;
 import com.minemod.modrecipebook.net.DebugUnlockPayload;
 import net.minecraft.core.RegistryAccess;
@@ -20,6 +21,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -106,9 +108,63 @@ public final class ModRecipeUnlocker {
     }
 
     public static void syncAll(ServerPlayer player) {
+        pruneBookmarks(player);
         Set<ResourceLocation> unlocked = player.getData(ModRecipeBookAttachments.UNLOCKED);
         PacketDistributor.sendToPlayer(player, new UnlockRecipesPayload(
                 List.copyOf(unlocked), List.copyOf(player.getData(ModRecipeBookAttachments.KNOWN_ITEMS)), true));
+        syncBookmarks(player);
+    }
+
+    public static void toggleBookmark(ServerPlayer player, String key) {
+        if (key == null || key.isBlank()) {
+            return;
+        }
+        Set<String> bookmarks = new LinkedHashSet<>(player.getData(ModRecipeBookAttachments.BOOKMARKS));
+        if (bookmarks.contains(key)) {
+            bookmarks.remove(key);
+        } else if (!unlockedItemKeys(player).contains(key)) {
+            return;
+        } else {
+            bookmarks.add(key);
+        }
+        player.setData(ModRecipeBookAttachments.BOOKMARKS, bookmarks);
+        syncBookmarks(player);
+    }
+
+    private static void pruneBookmarks(ServerPlayer player) {
+        Set<String> bookmarks = player.getData(ModRecipeBookAttachments.BOOKMARKS);
+        if (bookmarks.isEmpty()) {
+            return;
+        }
+        Set<String> live = unlockedItemKeys(player);
+        Set<String> next = new LinkedHashSet<>();
+        for (String key : bookmarks) {
+            if (live.contains(key)) {
+                next.add(key);
+            }
+        }
+        if (next.size() != bookmarks.size()) {
+            player.setData(ModRecipeBookAttachments.BOOKMARKS, next);
+        }
+    }
+
+    private static void syncBookmarks(ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, new BookmarkSyncPayload(
+                List.copyOf(player.getData(ModRecipeBookAttachments.BOOKMARKS))));
+    }
+
+    private static Set<String> unlockedItemKeys(ServerPlayer player) {
+        Set<String> keys = new HashSet<>();
+        RegistryAccess access = player.registryAccess();
+        for (ResourceLocation id : player.getData(ModRecipeBookAttachments.UNLOCKED)) {
+            ModRecipeIndex.byId(id).ifPresent(holder -> {
+                ItemStack result = IngredientExtractor.result(holder.value(), access);
+                if (!result.isEmpty()) {
+                    keys.add(PotionKeys.itemKey(result));
+                }
+            });
+        }
+        return keys;
     }
 
     public static void checkInventory(ServerPlayer player, boolean toast, boolean force) {
