@@ -68,7 +68,7 @@ public final class JeiRecipeLookup {
         }
         List<CategoryPage> pages = new ArrayList<>();
         grouped.forEach((type, recipes) -> pages.add(new CategoryPage(categories.get(type), List.copyOf(recipes))));
-        return pages;
+        return inUnlockOrder(pages);
     }
 
     public static boolean sameRecipe(JeiRecipeBinding binding, RecipeHolder<?> holder) {
@@ -159,7 +159,7 @@ public final class JeiRecipeLookup {
                 pages.add(new CategoryPage(category, List.copyOf(bindings)));
             }
         }
-        return pages;
+        return inUnlockOrder(pages);
     }
 
     private static List<CategoryPage> lookupEmptying(Fluid fluid) {
@@ -197,6 +197,15 @@ public final class JeiRecipeLookup {
                 pages.add(new CategoryPage(category, List.copyOf(bindings)));
             }
         }
+        return inUnlockOrder(pages);
+    }
+
+    private static List<CategoryPage> inUnlockOrder(List<CategoryPage> pages) {
+        for (CategoryPage page : pages) {
+            ClientUnlockedRecipes.rememberMethod(page.category().getRecipeType().getUid());
+        }
+        pages.sort(java.util.Comparator.comparingInt(page ->
+                ClientUnlockedRecipes.methodOrder(page.category().getRecipeType().getUid())));
         return pages;
     }
 

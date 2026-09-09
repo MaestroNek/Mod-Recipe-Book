@@ -19,14 +19,16 @@ public final class ModRecipeBookAttachments {
 
     public static final Codec<Set<ResourceLocation>> IDS_CODEC =
             ResourceLocation.CODEC.listOf().xmap(HashSet::new, ArrayList::new);
+    public static final Codec<Set<ResourceLocation>> ORDERED_IDS_CODEC =
+            ResourceLocation.CODEC.listOf().xmap(LinkedHashSet::new, ArrayList::new);
 
     public static final Codec<Set<String>> KEYS_CODEC =
             Codec.STRING.listOf().xmap(LinkedHashSet::new, ArrayList::new);
 
     public static final Supplier<AttachmentType<Set<ResourceLocation>>> UNLOCKED = ATTACHMENT_TYPES.register(
             "unlocked_recipes",
-            () -> AttachmentType.builder(() -> (Set<ResourceLocation>) new HashSet<ResourceLocation>())
-                    .serialize(IDS_CODEC)
+            () -> AttachmentType.builder(() -> (Set<ResourceLocation>) new LinkedHashSet<ResourceLocation>())
+                    .serialize(ORDERED_IDS_CODEC)
                     .copyOnDeath()
                     .build()
     );

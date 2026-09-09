@@ -75,7 +75,7 @@ public final class ModRecipeUnlocker {
     }
 
     private static void discoverAll(ServerPlayer player) {
-        Set<ResourceLocation> unlocked = new HashSet<>();
+        Set<ResourceLocation> unlocked = new LinkedHashSet<>();
         for (RecipeHolder<?> holder : ModRecipeIndex.indexed()) {
             unlocked.add(holder.id());
         }
@@ -90,7 +90,7 @@ public final class ModRecipeUnlocker {
     }
 
     private static void resetAll(ServerPlayer player) {
-        player.setData(ModRecipeBookAttachments.UNLOCKED, new HashSet<>());
+        player.setData(ModRecipeBookAttachments.UNLOCKED, new LinkedHashSet<>());
         player.setData(ModRecipeBookAttachments.KNOWN_ITEMS, new HashSet<>());
         syncAll(player);
         player.sendSystemMessage(Component.translatable("chat.modrecipebook.debug.reset", player.getName()));
@@ -101,7 +101,7 @@ public final class ModRecipeUnlocker {
             player.sendSystemMessage(Component.translatable("chat.modrecipebook.debug.rethink_wait"));
             return;
         }
-        player.setData(ModRecipeBookAttachments.UNLOCKED, new HashSet<>());
+        player.setData(ModRecipeBookAttachments.UNLOCKED, new LinkedHashSet<>());
         checkInventory(player, false, true);
         syncAll(player);
         player.sendSystemMessage(Component.translatable("chat.modrecipebook.debug.rethink", player.getName()));
@@ -168,7 +168,7 @@ public final class ModRecipeUnlocker {
     }
 
     public static void checkInventory(ServerPlayer player, boolean toast, boolean force) {
-        Set<ResourceLocation> unlocked = player.getData(ModRecipeBookAttachments.UNLOCKED);
+        Set<ResourceLocation> unlocked = orderedUnlocked(player);
         Set<ResourceLocation> knownIds = player.getData(ModRecipeBookAttachments.KNOWN_ITEMS);
         List<ResourceLocation> newly = new ArrayList<>();
         List<ResourceLocation> newlyKeys = new ArrayList<>();
@@ -259,6 +259,11 @@ public final class ModRecipeUnlocker {
         if (toast && (!newly.isEmpty() || !newlyKeys.isEmpty())) {
             PacketDistributor.sendToPlayer(player, new UnlockRecipesPayload(newly, newlyKeys, false));
         }
+    }
+
+    private static Set<ResourceLocation> orderedUnlocked(ServerPlayer player) {
+        Set<ResourceLocation> unlocked = player.getData(ModRecipeBookAttachments.UNLOCKED);
+        return unlocked instanceof LinkedHashSet ? unlocked : new LinkedHashSet<>(unlocked);
     }
 
     private static Set<Item> knownItemSet(Set<ResourceLocation> knownIds) {

@@ -14,13 +14,14 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RecipesUpdatedEvent;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 @EventBusSubscriber(modid = com.minemod.modrecipebook.ModRecipeBook.MODID, value = Dist.CLIENT)
 public final class ClientUnlockedRecipes {
-    private static final Set<ResourceLocation> UNLOCKED = new HashSet<>();
-    private static final Set<ResourceLocation> KNOWN = new HashSet<>();
+    private static final Set<ResourceLocation> UNLOCKED = new LinkedHashSet<>();
+    private static final Set<ResourceLocation> KNOWN = new LinkedHashSet<>();
+    private static final Set<ResourceLocation> METHODS = new LinkedHashSet<>();
     private static boolean ownToast;
 
     private ClientUnlockedRecipes() {}
@@ -33,6 +34,23 @@ public final class ClientUnlockedRecipes {
         return KNOWN.contains(BuiltInRegistries.ITEM.getKey(item));
     }
 
+    public static void rememberMethod(ResourceLocation uid) {
+        if (uid != null) {
+            METHODS.add(uid);
+        }
+    }
+
+    public static int methodOrder(ResourceLocation uid) {
+        int i = 0;
+        for (ResourceLocation id : METHODS) {
+            if (id.equals(uid)) {
+                return i;
+            }
+            i++;
+        }
+        return Integer.MAX_VALUE;
+    }
+
     public static boolean showingOwnToast() {
         return ownToast;
     }
@@ -41,8 +59,10 @@ public final class ClientUnlockedRecipes {
         if (payload.replace()) {
             UNLOCKED.clear();
             KNOWN.clear();
+            METHODS.clear();
             UNLOCKED.addAll(payload.recipes());
             KNOWN.addAll(payload.known());
+            rememberRecipes(payload.recipes());
             refreshOpenBook();
             return;
         }
@@ -53,6 +73,7 @@ public final class ClientUnlockedRecipes {
                 continue;
             }
             added = true;
+            rememberRecipe(id);
             if (minecraft.level == null) {
                 continue;
             }
@@ -76,6 +97,17 @@ public final class ClientUnlockedRecipes {
         }
     }
 
+    private static void rememberRecipes(Iterable<ResourceLocation> ids) {
+        for (ResourceLocation id : ids) {
+            rememberRecipe(id);
+        }
+    }
+
+    private static void rememberRecipe(ResourceLocation id) {
+        ModRecipeIndex.byId(id).ifPresent(holder ->
+                rememberMethod(BuiltInRegistries.RECIPE_TYPE.getKey(holder.value().getType())));
+    }
+
     private static void refreshOpenBook() {
         ModRecipeBookComponent book = ModRecipeBookScreens.component(Minecraft.getInstance().screen);
         if (book != null) {
@@ -91,6 +123,8 @@ public final class ClientUnlockedRecipes {
                     minecraft.level.potionBrewing());
             JeiStations.importIfAvailable();
         }
+        METHODS.clear();
+        rememberRecipes(UNLOCKED);
         refreshOpenBook();
     }
 }

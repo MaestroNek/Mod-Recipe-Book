@@ -79,19 +79,7 @@ public final class JeiDetailPanel implements DeviceDetailPanel {
         }
         int preferred = Math.min(Math.max(index, 0), unlocked.size() - 1);
         RecipeHolder<?> fallback = unlocked.get(preferred);
-        int categoryIndex = 0;
-        int recipeIndex = 0;
-        for (int c = 0; c < pages.size(); c++) {
-            List<JeiRecipeBinding> recipes = pages.get(c).recipes();
-            for (int r = 0; r < recipes.size(); r++) {
-                if (JeiRecipeLookup.sameRecipe(recipes.get(r), fallback)) {
-                    categoryIndex = c;
-                    recipeIndex = r;
-                }
-            }
-        }
-        return new JeiDetailPanel(fallback, pages, categoryIndex, recipeIndex,
-                pages.get(categoryIndex).recipes().get(recipeIndex));
+        return new JeiDetailPanel(fallback, pages, 0, 0, pages.getFirst().recipes().getFirst());
     }
 
     public static JeiDetailPanel tryCreate(ItemStack result, RecipeHolder<?> fallback) {
