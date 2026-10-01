@@ -1,0 +1,49 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="MIT"
+
+[[mods]]
+modId="modrecipebook"
+version="${version}"
+displayName="Mod Recipe Book"
+authors="MaestroNek"
+logoFile="logo.png"
+description='''A progression-based recipe book with items from mods. Discover items, unlock recipes, and learn mods as you play.'''
+
+[[mixins]]
+config="modrecipebook.mixins.json"
+
+[[dependencies.modrecipebook]]
+    modId="neoforge"
+    type="required"
+    versionRange="[${neo_version},)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.modrecipebook]]
+    modId="minecraft"
+    type="required"
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.modrecipebook]]
+    modId="architectury"
+    type="required"
+    versionRange="[${architectury_version},)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.modrecipebook]]
+    modId="jei"
+    type="required"
+    versionRange="${jei_version_range}"
+    ordering="AFTER"
+    side="CLIENT"
+
+[[dependencies.modrecipebook]]
+    modId="create"
+    type="optional"
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"

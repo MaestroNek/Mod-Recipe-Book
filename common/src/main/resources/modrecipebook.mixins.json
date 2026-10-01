@@ -1,0 +1,25 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "com.minemod.modrecipebook.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "InventoryScreenMixin",
+    "CraftingScreenMixin",
+    "AbstractFurnaceScreenMixin",
+    "AbstractContainerScreenMixin",
+    "AbstractContainerScreenAccessor",
+    "BrewingStandScreenMixin",
+    "RecipeBookComponentMixin",
+    "RecipeToastMixin"
+  ],
+    "mixins": [
+    "PotionBrewingAccessor",
+    "PotionMixAccessor",
+    "RecipeBookMixin",
+    "ServerGamePacketListenerImplMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

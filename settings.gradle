@@ -1,9 +1,40 @@
 pluginManagement {
+    def archLocal = new File(settingsDir, "gradle/m2")
     repositories {
+        maven { url = "https://maven.fabricmc.net/" }
+        maven { url = "https://libraries.minecraft.net/" }
+        // maven.architectury.dev stalls after ~16KB on this network. gradle/m2 is a chunk-downloaded mirror.
+        if (archLocal.isDirectory()) {
+            maven {
+                url = archLocal.toURI()
+                metadataSources {
+                    mavenPom()
+                    artifact()
+                    ignoreGradleMetadataRedirection()
+                }
+            }
+        } else {
+            maven {
+                url = "https://maven.architectury.dev/"
+                metadataSources {
+                    mavenPom()
+                    artifact()
+                    ignoreGradleMetadataRedirection()
+                }
+            }
+        }
+        maven { url = "https://maven.neoforged.net/releases/" }
         gradlePluginPortal()
+        mavenCentral()
     }
 }
 
 plugins {
-    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+    id "org.gradle.toolchains.foojay-resolver-convention" version "1.0.0"
 }
+
+rootProject.name = "modrecipebook"
+
+include "common"
+include "fabric"
+include "neoforge"

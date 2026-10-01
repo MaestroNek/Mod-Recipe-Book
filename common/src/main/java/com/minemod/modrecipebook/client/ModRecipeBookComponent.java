@@ -1,0 +1,1258 @@
+package com.minemod.modrecipebook.client;
+
+import com.minemod.modrecipebook.ModRecipeBook;
+import com.minemod.modrecipebook.client.jei.JeiDetailPanel;
+import com.minemod.modrecipebook.client.jei.JeiRecipeLookup;
+import com.minemod.modrecipebook.client.layout.RecipeLayout;
+import com.minemod.modrecipebook.client.layout.RecipeLayouts;
+import com.minemod.modrecipebook.net.BookmarkPayload;
+import com.minemod.modrecipebook.net.PlaceBrewingPayload;
+import com.minemod.modrecipebook.recipe.BrewingMixRecipe;
+import com.minemod.modrecipebook.recipe.BrewingRecipes;
+import com.minemod.modrecipebook.recipe.IngredientExtractor;
+import com.minemod.modrecipebook.recipe.ModRecipeIndex;
+import com.minemod.modrecipebook.recipe.PotionKeys;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.ImageButton;
+import net.minecraft.client.gui.components.StateSwitchingButton;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.components.WidgetSprites;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.renderer.Rect2i;
+import net.minecraft.client.gui.screens.recipebook.GhostRecipe;
+import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.entity.player.StackedContents;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.BrewingStandMenu;
+import net.minecraft.world.inventory.RecipeBookMenu;
+import net.minecraft.world.inventory.RecipeBookType;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.recipebook.PlaceRecipe;
+import com.minemod.modrecipebook.client.jei.BookFluid;
+import dev.architectury.networking.NetworkManager;
+import org.lwjgl.glfw.GLFW;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Predicate;
+
+public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
+    public static final ResourceLocation TEXTURE = ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "textures/gui/recipe_book.png");
+    public static final ResourceLocation TEXTURE_BOOKMARK = ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "textures/gui/recipe_book_bookmark.png");
+    public static final ResourceLocation DETAIL_TEXTURE = ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "textures/gui/recipe_book_detail.png");
+    private static final ResourceLocation BOOKMARK =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/bookmark");
+    private static final ResourceLocation BOOKMARK_HOVER_CLOSED =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/bookmark_hovered_closed");
+    private static final ResourceLocation BOOKMARK_HOVER_OPEN =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/bookmark_hovered_open");
+    private static final ResourceLocation BOOKMARK_ACTIVE =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/bookmark_active");
+    private static final ResourceLocation ITEM_BOOKMARK =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/item_bookmark");
+    private static final ResourceLocation ITEM_BOOKMARK_HOVER =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/item_bookmark_highlighted");
+    private static final ResourceLocation ITEM_BOOKMARK_ADDED =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/item_bookmark_added");
+    private static final ResourceLocation ITEM_BOOKMARK_ADDED_HOVER =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/item_bookmark_added_highlighted");
+    private static final ResourceLocation MOUSE_MIDDLE =
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/mouse_middle");
+    public static final WidgetSprites BUTTON_SPRITES = new WidgetSprites(
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/button"),
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/button_highlighted")
+    );
+    public static final WidgetSprites ROTATE_SPRITES = new WidgetSprites(
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/rotate"),
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/rotate_highlighted")
+    );
+    public static final int IMAGE_WIDTH = 147;
+    public static final int IMAGE_HEIGHT = 166;
+    public static final int DETAIL_IMAGE_WIDTH = 177;
+    public static final int DETAIL_IMAGE_HEIGHT = 166;
+    /** Tabs extend 31px past the panel right edge (35px wide, 4px overlap). */
+    public static final int TAB_OVERHANG = 31;
+    private static final int TAB_WIDTH = 35;
+    private static final int TAB_HEIGHT = 27;
+    private static final int TAB_FIT = 6;
+    private static final int ARROW_W = 17;
+    private static final int ARROW_H = 12;
+    private static final int TAB_ARROW_GAP = 3;
+    private static final int BOOKMARK_W = 12;
+    private static final int BOOKMARK_H = 24;
+    private static final int ITEM_BOOKMARK_W = 11;
+    private static final int ITEM_BOOKMARK_H = 14;
+    private static final Map<String, Boolean> OPEN = new HashMap<>();
+    private static final Map<String, Boolean> FILTER = new HashMap<>();
+    private static final Map<String, Boolean> BOOKMARK_MODE = new HashMap<>();
+    private static final Component SEARCH_HINT = Component.translatable("gui.recipebook.search_hint")
+            .withStyle(ChatFormatting.ITALIC, ChatFormatting.GRAY);
+
+    private final GhostRecipe ghostRecipe = new GhostRecipe();
+    private final ModRecipePage page = new ModRecipePage();
+    private final List<ModRecipeTabButton> tabs = new ArrayList<>();
+    private final StackedContents stackedContents = new StackedContents();
+
+    private Minecraft minecraft;
+    private AbstractContainerMenu menu;
+    private String bookKey = RecipeBookType.CRAFTING.name();
+    private AbstractContainerScreen<?> screen;
+    private RecipeBookComponent vanilla;
+    private EditBox searchBox;
+    private StateSwitchingButton filterButton;
+    private StateSwitchingButton backButton;
+    private boolean visible;
+    private boolean filteringCraftable;
+    private boolean widthTooNarrow;
+    private int width;
+    private int height;
+    private int bookX;
+    private int bookY;
+    private int tabScroll;
+    private String selectedCategory;
+    private String lastSearch = "";
+    private int timesInventoryChanged = -1;
+    private RecipeHolder<?> detail;
+    private RecipeGroup detailGroup;
+    private int detailIndex;
+    private DeviceDetailPanel jeiDetail;
+    private Component emptyDetail;
+    private boolean bookmarkMode;
+
+    public void init(int width, int height, Minecraft minecraft, boolean widthTooNarrow, AbstractContainerMenu menu,
+                     AbstractContainerScreen<?> screen, RecipeBookComponent vanilla) {
+        this.width = width;
+        this.height = height;
+        this.minecraft = minecraft;
+        this.widthTooNarrow = widthTooNarrow;
+        this.menu = menu;
+        this.bookKey = bookKey(menu);
+        this.screen = screen;
+        this.vanilla = vanilla;
+        this.visible = OPEN.getOrDefault(bookKey, false);
+        this.filteringCraftable = FILTER.getOrDefault(bookKey, false);
+        this.bookmarkMode = BOOKMARK_MODE.getOrDefault(bookKey, false);
+        if (this.visible && vanilla != null && vanilla.isVisible()) {
+            vanilla.toggleVisibility();
+        }
+        if (visible) {
+            initVisuals();
+        }
+    }
+
+    public int updateScreenPosition(int screenWidth, int imageWidth) {
+        if (!visible || widthTooNarrow) {
+            return (screenWidth - imageWidth) / 2;
+        }
+        return (screenWidth - imageWidth - IMAGE_WIDTH - TAB_OVERHANG) / 2;
+    }
+
+    private void refreshLayout() {
+        bookX = bookLeft();
+        bookY = GuiOrigin.y(screen);
+        if (jeiDetail != null) {
+            jeiDetail.initButtons(bookX, bookY, panelHeight());
+        } else if (backButton != null) {
+            backButton.visible = detail != null || emptyDetail != null;
+            backButton.setPosition(bookX + (emptyDetail != null ? 6 : 8), bookY + (emptyDetail != null ? 4 : 6));
+            if (searchBox != null) {
+                searchBox.setPosition(bookX + 25, bookY + 13);
+            }
+            if (filterButton != null) {
+                filterButton.setPosition(bookX + 110, bookY + 12);
+            }
+            page.init(minecraft, bookX, bookY);
+        }
+        positionTabs();
+    }
+
+    /** Re-anchor the book after the screen shifts (leftPos updated). */
+    public void syncLayout() {
+        if (!visible) {
+            return;
+        }
+        if (searchBox == null) {
+            initVisuals();
+        } else {
+            refreshLayout();
+        }
+    }
+
+    public void initVisuals() {
+        bookX = bookLeft();
+        bookY = GuiOrigin.y(screen);
+        stackedContents.clear();
+        if (minecraft.player != null) {
+            minecraft.player.getInventory().fillStackedContents(stackedContents);
+        }
+        fillCraftSlots();
+        String search = searchBox != null ? searchBox.getValue() : "";
+        searchBox = new EditBox(minecraft.font, bookX + 25, bookY + 13, 80, 14, SEARCH_HINT);
+        searchBox.setMaxLength(50);
+        searchBox.setVisible(true);
+        searchBox.setTextColor(0xFFFFFF);
+        searchBox.setValue(search);
+        searchBox.setHint(SEARCH_HINT);
+        filterButton = new StateSwitchingButton(bookX + 110, bookY + 12, 26, 16, filteringCraftable);
+        applyFilterSprites();
+        backButton = new StateSwitchingButton(bookX + 8, bookY + 6, 12, 17, true);
+        backButton.initTextureValues(new WidgetSprites(
+                ResourceLocation.withDefaultNamespace("recipe_book/page_backward"),
+                ResourceLocation.withDefaultNamespace("recipe_book/page_backward_highlighted")
+        ));
+        backButton.visible = false;
+        if (jeiDetail != null) {
+            jeiDetail.initButtons(bookX, bookY, panelHeight());
+        }
+        rebuildTabs();
+        ModRecipeTabButton.setBookmarkLook(bookmarkChrome());
+        page.init(minecraft, bookX, bookY);
+        updateCollections(true);
+    }
+
+    private int panelWidth() {
+        if (jeiDetail != null) {
+            return jeiDetail.width();
+        }
+        if (emptyDetail != null) {
+            return DETAIL_IMAGE_WIDTH;
+        }
+        return IMAGE_WIDTH;
+    }
+
+    private int panelHeight() {
+        return screen != null ? GuiOrigin.height(screen) : IMAGE_HEIGHT;
+    }
+
+    private int bookLeft() {
+        int attached = GuiOrigin.x(screen) + GuiOrigin.width(screen);
+        int panelWidth = panelWidth();
+        if (widthTooNarrow || attached + panelWidth > width) {
+            return width - panelWidth - 2;
+        }
+        return attached + 2;
+    }
+
+    private void openDetail(RecipeGroup group, RecipeHolder<?> preferred) {
+        emptyDetail = null;
+        detailGroup = group;
+        detailIndex = 0;
+        for (int i = 0; i < group.recipes().size(); i++) {
+            if (group.recipes().get(i).id().equals(preferred.id())) {
+                detailIndex = i;
+                break;
+            }
+        }
+        detail = group.recipes().get(detailIndex);
+        jeiDetail = JeiDetailPanel.tryCreate(group, detailIndex);
+        refreshLayout();
+    }
+
+    private void closeDetail() {
+        detail = null;
+        detailGroup = null;
+        detailIndex = 0;
+        jeiDetail = null;
+        emptyDetail = null;
+        refreshLayout();
+    }
+
+    private static void playClick() {
+        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+    }
+    private void rebuildTabs() {
+        tabs.clear();
+        tabs.add(new ModRecipeTabButton(null, new ItemStack(Items.COMPASS), Component.translatable("gui.modrecipebook.tab.all")));
+        for (RecipeCategoryConfig.Entry category : RecipeCategoryConfig.all()) {
+            tabs.add(new ModRecipeTabButton(category.id, category.iconStack(), category.title()));
+        }
+        if (selectedCategory != null && tabs.stream().noneMatch(t -> selectedCategory.equals(t.categoryId()))) {
+            selectedCategory = null;
+        }
+        positionTabs();
+        for (ModRecipeTabButton tab : tabs) {
+            tab.setSelected((selectedCategory == null && tab.categoryId() == null)
+                    || (selectedCategory != null && selectedCategory.equals(tab.categoryId())));
+        }
+    }
+
+    private void positionTabs() {
+        int maxVisible = maxVisibleTabs();
+        tabScroll = Math.max(0, Math.min(tabScroll, Math.max(0, tabs.size() - maxVisible)));
+        int y = tabRowTop();
+        int i = 0;
+        for (int index = 0; index < tabs.size(); index++) {
+            ModRecipeTabButton tab = tabs.get(index);
+            boolean show = index >= tabScroll && i < maxVisible;
+            tab.visible = show;
+            if (show) {
+                tab.setPosition(bookX + panelWidth() - 5, y + i * TAB_HEIGHT);
+                i++;
+            }
+        }
+    }
+
+    private boolean tabOverflow() {
+        return tabs.size() > TAB_FIT;
+    }
+
+    private int maxVisibleTabs() {
+        return tabOverflow() ? TAB_FIT - 1 : TAB_FIT;
+    }
+
+    private int tabRowTop() {
+        if (!tabOverflow()) {
+            return bookY + 3;
+        }
+        int total = ARROW_H + TAB_ARROW_GAP + maxVisibleTabs() * TAB_HEIGHT + TAB_ARROW_GAP + ARROW_H;
+        return bookY + (IMAGE_HEIGHT - total) / 2 + ARROW_H + TAB_ARROW_GAP;
+    }
+
+    private boolean scrollTabs(int delta) {
+        int maxScroll = Math.max(0, tabs.size() - maxVisibleTabs());
+        int next = Math.max(0, Math.min(maxScroll, tabScroll + delta));
+        if (next == tabScroll) {
+            return tabOverflow();
+        }
+        tabScroll = next;
+        positionTabs();
+        return true;
+    }
+
+    private int tabArrowX() {
+        return bookX + panelWidth() - 5 + (TAB_WIDTH - ARROW_W) / 2;
+    }
+
+    private int tabArrowY(boolean up) {
+        if (up) {
+            return tabRowTop() - TAB_ARROW_GAP - ARROW_H + 1;
+        }
+        return tabRowTop() + maxVisibleTabs() * TAB_HEIGHT + TAB_ARROW_GAP - 2;
+    }
+
+    private boolean overTabArrow(double mouseX, double mouseY, boolean up) {
+        int x = tabArrowX();
+        int y = tabArrowY(up);
+        return mouseX >= x && mouseX < x + ARROW_W && mouseY >= y && mouseY < y + ARROW_H;
+    }
+
+    private void drawTabArrow(GuiGraphics graphics, boolean up, int mouseX, int mouseY) {
+        int x = tabArrowX();
+        int y = tabArrowY(up);
+        boolean hover = overTabArrow(mouseX, mouseY, up);
+        String name = up
+                ? (hover ? "recipe_book/page_up_highlighted" : "recipe_book/page_up")
+                : (hover ? "recipe_book/page_down_highlighted" : "recipe_book/page_down");
+        if (bookmarkChrome()) {
+            name = name + "_bookmark";
+        }
+        graphics.blitSprite(ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, name), x, y, ARROW_W, ARROW_H);
+    }
+
+    public ImageButton createToggleButton(int x, int y, net.minecraft.client.gui.components.Button.OnPress onPress) {
+        return new ImageButton(x, y, 20, 18, BUTTON_SPRITES, onPress,
+                Component.translatable("gui.modrecipebook.toggle")) {
+            @Override
+            public boolean isHoveredOrFocused() {
+                return isHovered() || ModRecipeBookComponent.this.isVisible();
+            }
+        };
+    }
+
+    public ImageButton createRotateButton(int x, int y, net.minecraft.client.gui.components.Button.OnPress onPress) {
+        ImageButton button = new ImageButton(x, y, 11, 11, ROTATE_SPRITES, onPress,
+                Component.translatable("gui.modrecipebook.rotate_books"));
+        button.setTooltip(Tooltip.create(Component.translatable("gui.modrecipebook.rotate_books")));
+        return button;
+    }
+
+    public void toggleVisibility() {
+        setVisible(!visible);
+    }
+
+    public void setVisible(boolean visible) {
+        if (this.visible == visible) {
+            return;
+        }
+        this.visible = visible;
+        if (menu != null) {
+            OPEN.put(bookKey, visible);
+        }
+        if (visible) {
+            initVisuals();
+        } else {
+            detail = null;
+            detailGroup = null;
+            detailIndex = 0;
+            jeiDetail = null;
+            clearGhosts();
+            lastSearch = "";
+            emptyDetail = null;
+            if (searchBox != null) {
+                searchBox.setValue("");
+                searchBox.setFocused(false);
+            }
+        }
+    }
+
+    public boolean isVisible() {
+        return visible;
+    }
+
+    public boolean isVanillaVisible() {
+        return vanilla != null && vanilla.isVisible();
+    }
+
+    public Rect2i overlayExclusion() {
+        return new Rect2i(bookX, bookY, panelWidth() + TAB_OVERHANG, Math.max(IMAGE_HEIGHT, panelHeight()));
+    }
+
+    public void placeRotateButton(ImageButton rotate) {
+        rotate.setPosition(bookX, bookY + Math.max(IMAGE_HEIGHT, panelHeight()) + 2);
+    }
+
+    public void tick() {
+        if (!visible) {
+            return;
+        }
+        if (widthTooNarrow) {
+            int nextX = bookLeft();
+            if (nextX != bookX) {
+                refreshLayout();
+            }
+        }
+        if (searchBox != null) {
+            if (!lastSearch.equals(searchBox.getValue())) {
+                lastSearch = searchBox.getValue();
+                updateCollections(false);
+            }
+        }
+        int timesChanged = minecraft.player == null ? 0 : minecraft.player.getInventory().getTimesChanged();
+        if (timesChanged != timesInventoryChanged) {
+            timesInventoryChanged = timesChanged;
+            updateCollections(false);
+        }
+        if (jeiDetail != null) {
+            jeiDetail.tick();
+        } else if (detail != null && detailGroup != null) {
+            tryUpgradeDetail();
+        }
+        int tabX = bookX + panelWidth() - 5;
+        for (ModRecipeTabButton tab : tabs) {
+            if (tab.visible && tab.getX() != tabX) {
+                positionTabs();
+                break;
+            }
+        }
+    }
+
+    private void tryUpgradeDetail() {
+        if (jeiDetail != null || detailGroup == null) {
+            return;
+        }
+        JeiDetailPanel upgraded = JeiDetailPanel.tryCreate(detailGroup, detailIndex);
+        if (upgraded != null) {
+            jeiDetail = upgraded;
+            refreshLayout();
+        }
+    }
+
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (!visible) {
+            return;
+        }
+        graphics.pose().pushPose();
+        graphics.pose().translate(0.0F, 0.0F, 100.0F);
+        ModRecipeTabButton.setBookmarkLook(bookmarkChrome());
+        page.setBookmarkLook(bookmarkChrome());
+        if (jeiDetail != null) {
+            jeiDetail.render(graphics, mouseX, mouseY, partialTick);
+        } else if (emptyDetail != null) {
+            int w = DETAIL_IMAGE_WIDTH;
+            int h = panelHeight();
+            graphics.blit(DETAIL_TEXTURE, bookX, bookY, 0, 0, w, h, w, DETAIL_IMAGE_HEIGHT);
+            backButton.visible = true;
+            backButton.render(graphics, mouseX, mouseY, partialTick);
+            int textX = bookX + (w - minecraft.font.width(emptyDetail)) / 2;
+            graphics.drawString(minecraft.font, emptyDetail, textX, bookY + h / 2 - 4, 0x404040, false);
+        } else {
+            graphics.blit(bookmarkChrome() ? TEXTURE_BOOKMARK : TEXTURE,
+                    bookX, bookY, 1, 1, IMAGE_WIDTH, IMAGE_HEIGHT);
+            if (detail != null) {
+                backButton.visible = true;
+                backButton.render(graphics, mouseX, mouseY, partialTick);
+                RecipeLayout layout = RecipeLayouts.of(detail);
+                layout.render(graphics, bookX, bookY, detail, mouseX, mouseY, partialTick);
+            } else {
+                backButton.visible = false;
+                if (searchBox != null) {
+                    searchBox.render(graphics, mouseX, mouseY, partialTick);
+                }
+                filterButton.render(graphics, mouseX, mouseY, partialTick);
+                if (bookmarkMode && page.isEmpty()) {
+                    renderBookmarkHint(graphics);
+                } else {
+                    page.render(graphics, mouseX, mouseY, partialTick);
+                }
+            }
+        }
+        renderBookmarkButton(graphics, mouseX, mouseY);
+        renderItemBookmarkButton(graphics, mouseX, mouseY);
+        for (ModRecipeTabButton tab : tabs) {
+            if (tab.visible) {
+                tab.render(graphics, mouseX, mouseY, partialTick);
+            }
+        }
+        if (tabScroll > 0) {
+            drawTabArrow(graphics, true, mouseX, mouseY);
+        }
+        if (tabScroll + maxVisibleTabs() < tabs.size()) {
+            drawTabArrow(graphics, false, mouseX, mouseY);
+        }
+        graphics.pose().popPose();
+    }
+
+    public void renderTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (!visible) {
+            return;
+        }
+        if (blocksMouse(mouseX, mouseY)) {
+            jeiDetail.renderOverlays(graphics, mouseX, mouseY);
+            return;
+        }
+        if (overItemBookmark(mouseX, mouseY)) {
+            graphics.renderTooltip(minecraft.font, Component.translatable(
+                    itemBookmarked() ? "gui.modrecipebook.bookmarks.remove" : "gui.modrecipebook.bookmarks.add"
+            ), mouseX, mouseY);
+            return;
+        }
+        if (jeiDetail != null) {
+            jeiDetail.renderOverlays(graphics, mouseX, mouseY);
+        } else if (detail != null) {
+            RecipeLayouts.of(detail).renderTooltip(graphics, bookX, bookY, detail, mouseX, mouseY);
+        } else if (emptyDetail == null) {
+            if (!(bookmarkMode && page.isEmpty())) {
+                page.renderTooltip(graphics, mouseX, mouseY);
+            }
+            if (filterButton.isHovered()) {
+                graphics.renderTooltip(minecraft.font, Component.translatable(
+                        filteringCraftable ? "gui.modrecipebook.filter.craftable" : "gui.modrecipebook.filter.all"
+                ), mouseX, mouseY);
+            }
+        }
+        for (ModRecipeTabButton tab : tabs) {
+            if (tab.visible) {
+                tab.renderTooltip(graphics, mouseX, mouseY);
+            }
+        }
+        if (overBookmark(mouseX, mouseY)) {
+            graphics.renderTooltip(minecraft.font, Component.translatable("gui.modrecipebook.bookmarks"), mouseX, mouseY);
+        }
+    }
+
+    public void renderGhostRecipe(GuiGraphics graphics, int leftPos, int topPos, float partialTick) {
+        if (visible) {
+            boolean largeResult = !(menu instanceof BrewingStandMenu);
+            ghostRecipe.render(graphics, minecraft, leftPos, topPos, largeResult, partialTick);
+        }
+    }
+
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (!visible) {
+            return false;
+        }
+        if (jeiDetail instanceof JeiDetailPanel jei) {
+            ItemStack picked = jei.clickVariants(mouseX, mouseY);
+            if (picked != null) {
+                if (!picked.isEmpty()) {
+                    openItemRecipes(picked);
+                    playClick();
+                }
+                return true;
+            }
+        }
+        if (button == 0 && overBookmark(mouseX, mouseY)) {
+            toggleBookmarkMode();
+            return true;
+        }
+        if (button == 0 && overItemBookmark(mouseX, mouseY)) {
+            NetworkManager.sendToServer(new BookmarkPayload(itemKey(detailGroup.result())));
+            playClick();
+            return true;
+        }
+        if (button == 0) {
+            if (tabOverflow()) {
+                if (overTabArrow(mouseX, mouseY, true) && tabScroll > 0) {
+                    if (scrollTabs(-1)) {
+                        playClick();
+                    }
+                    return true;
+                }
+                if (overTabArrow(mouseX, mouseY, false) && tabScroll + maxVisibleTabs() < tabs.size()) {
+                    if (scrollTabs(1)) {
+                        playClick();
+                    }
+                    return true;
+                }
+            }
+            for (ModRecipeTabButton tab : tabs) {
+                if (tab.visible && tab.mouseClicked(mouseX, mouseY, button)) {
+                    selectedCategory = tab.categoryId();
+                    for (ModRecipeTabButton other : tabs) {
+                        other.setSelected(other == tab);
+                    }
+                    detail = null;
+                    detailGroup = null;
+                    detailIndex = 0;
+                    jeiDetail = null;
+                    emptyDetail = null;
+                    updateCollections(true);
+                    refreshLayout();
+                    return true;
+                }
+            }
+        }
+        if (jeiDetail instanceof JeiDetailPanel jei) {
+            if (button == 0 && jei.backButton().mouseClicked(mouseX, mouseY, button)) {
+                closeDetail();
+                return true;
+            }
+            if (button == 1) {
+                Optional<ItemStack> clicked = jei.itemUnderMouse(mouseX, mouseY);
+                if (clicked.isPresent()) {
+                    openItemRecipes(clicked.get());
+                    playClick();
+                    return true;
+                }
+                Optional<BookFluid> fluid = jei.fluidUnderMouse(mouseX, mouseY);
+                if (fluid.isPresent()) {
+                    openFluidRecipes(fluid.get());
+                    playClick();
+                    return true;
+                }
+                return jei.isMouseOver(mouseX, mouseY);
+            }
+            if (jei.mouseClicked(mouseX, mouseY, button)) {
+                detail = jei.recipe();
+                refreshLayout();
+                return true;
+            }
+            return jei.isMouseOver(mouseX, mouseY);
+        }
+        if (detail != null || emptyDetail != null) {
+            if (button == 0 && backButton.mouseClicked(mouseX, mouseY, button)) {
+                closeDetail();
+                return true;
+            }
+            if (button == 1 && detail != null) {
+                Optional<ItemStack> clicked = RecipeLayouts.of(detail).itemUnderMouse(bookX, bookY, detail, mouseX, mouseY);
+                if (clicked.isPresent()) {
+                    openItemRecipes(clicked.get());
+                    playClick();
+                    return true;
+                }
+            }
+            return isMouseOver(mouseX, mouseY);
+        }
+        if (button != 0) {
+            ModRecipeButton hovered = page.hovered(mouseX, mouseY);
+            if (button == 2 && hovered != null && hovered.group() != null) {
+                NetworkManager.sendToServer(new BookmarkPayload(itemKey(hovered.group().result())));
+                playClick();
+                return true;
+            }
+            if (button == 1 && hovered != null && hovered.group() != null) {
+                RecipeHolder<?> preferred = placeableRecipe(hovered.group());
+                openDetail(hovered.group(), preferred != null ? preferred : hovered.recipe());
+                clearGhosts();
+                playClick();
+                return true;
+            }
+            return isMouseOver(mouseX, mouseY);
+        }
+        if (searchBox != null && searchBox.mouseClicked(mouseX, mouseY, button)) {
+            searchBox.setFocused(true);
+            return true;
+        }
+        if (searchBox != null) {
+            searchBox.setFocused(false);
+        }
+        if (filterButton.mouseClicked(mouseX, mouseY, button)) {
+            filteringCraftable = !filteringCraftable;
+            filterButton.setStateTriggered(filteringCraftable);
+            if (menu != null) {
+                FILTER.put(bookKey, filteringCraftable);
+            }
+            updateCollections(true);
+            return true;
+        }
+        if (page.mouseClicked(mouseX, mouseY, button)) {
+            return true;
+        }
+        ModRecipeButton hovered = page.hovered(mouseX, mouseY);
+        if (hovered != null && hovered.group() != null) {
+            RecipeHolder<?> placeable = placeableRecipe(hovered.group());
+            if (placeable != null) {
+                place(placeable, Screen.hasShiftDown());
+            }
+            return true;
+        }
+        return isMouseOver(mouseX, mouseY);
+    }
+
+    private void openItemRecipes(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        ItemStack focused = stack.copyWithCount(1);
+        RecipeGroup group = findUnlockedGroup(focused);
+        if (group == null) {
+            ItemStack plain = new ItemStack(stack.getItem());
+            if (!ItemStack.isSameItemSameComponents(focused, plain)) {
+                group = findUnlockedGroup(plain);
+            }
+        }
+        if (group != null) {
+            openDetail(group, group.primary());
+            return;
+        }
+        showEmptyDetail(anyOutputRecipeExists(focused)
+                ? "gui.modrecipebook.unknown_recipe"
+                : "gui.modrecipebook.no_recipe");
+    }
+
+    private void openFluidRecipes(BookFluid fluid) {
+        JeiDetailPanel panel = JeiDetailPanel.tryCreateFluid(fluid);
+        if (panel != null) {
+            emptyDetail = null;
+            jeiDetail = panel;
+            detail = panel.recipe();
+            detailGroup = null;
+            detailIndex = 0;
+            refreshLayout();
+            return;
+        }
+        showEmptyDetail(JeiRecipeLookup.anyFluidSource(fluid)
+                ? "gui.modrecipebook.unknown_recipe"
+                : "gui.modrecipebook.no_recipe");
+    }
+
+    private boolean isRecipeKnown(Object recipe) {
+        return recipe instanceof RecipeHolder<?> holder && ClientUnlockedRecipes.isUnlocked(holder.id());
+    }
+
+    private boolean anyOutputRecipeExists(ItemStack stack) {
+        if (minecraft.level == null || stack.isEmpty()) {
+            return false;
+        }
+        String key = itemKey(stack);
+        for (RecipeHolder<?> holder : ModRecipeIndex.byResult(stack.getItem())) {
+            ItemStack out = IngredientExtractor.result(holder.value(), minecraft.level.registryAccess());
+            if (!out.isEmpty() && key.equals(itemKey(out))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String itemKey(ItemStack stack) {
+        return PotionKeys.itemKey(stack);
+    }
+
+    private static String bookKey(AbstractContainerMenu menu) {
+        if (menu instanceof RecipeBookMenu<?, ?> bookMenu) {
+            return bookMenu.getRecipeBookType().name();
+        }
+        if (menu instanceof BrewingStandMenu) {
+            return BrewingRecipes.BOOK_KEY;
+        }
+        return RecipeBookType.CRAFTING.name();
+    }
+
+    private void fillCraftSlots() {
+        if (menu instanceof RecipeBookMenu<?, ?> bookMenu) {
+            bookMenu.fillCraftSlotsStackedContents(stackedContents);
+        }
+    }
+
+    private RecipeGroup findUnlockedGroup(ItemStack stack) {
+        if (minecraft.level == null || stack.isEmpty()) {
+            return null;
+        }
+            String key = itemKey(stack);
+        List<RecipeHolder<?>> recipes = new ArrayList<>();
+        ItemStack result = ItemStack.EMPTY;
+        List<RecipeHolder<?>> source = new ArrayList<>(ModRecipeIndex.all());
+        source.addAll(ModRecipeIndex.recipesByItemMod("minecraft"));
+        for (RecipeHolder<?> holder : source) {
+            if (!isRecipeKnown(holder)) {
+                continue;
+            }
+            ItemStack out = IngredientExtractor.result(holder.value(), minecraft.level.registryAccess());
+            if (out.isEmpty() || !key.equals(itemKey(out))) {
+                continue;
+            }
+            if (result.isEmpty()) {
+                result = out.copy();
+            }
+            recipes.add(holder);
+        }
+        return recipes.isEmpty() ? null : new RecipeGroup(result, recipes);
+    }
+
+    private void showEmptyDetail(String translationKey) {
+        jeiDetail = null;
+        detail = null;
+        detailGroup = null;
+        detailIndex = 0;
+        emptyDetail = Component.translatable(translationKey);
+        refreshLayout();
+    }
+
+    private RecipeHolder<?> placeableRecipe(RecipeGroup group) {
+        RecipeHolder<?> fallback = null;
+        for (RecipeHolder<?> holder : group.recipes()) {
+            if (!canPlaceIntoMenu(holder)) {
+                continue;
+            }
+            if (fallback == null) {
+                fallback = holder;
+            }
+            if (canCraft(holder)) {
+                return holder;
+            }
+        }
+        return fallback;
+    }
+
+    private boolean canPlaceIntoMenu(RecipeHolder<?> recipe) {
+        if (minecraft.player == null || menu == null) {
+            return false;
+        }
+        if (recipe.value() instanceof BrewingMixRecipe) {
+            return menu instanceof BrewingStandMenu;
+        }
+        if (!(menu instanceof RecipeBookMenu<?, ?> bookMenu)) {
+            return false;
+        }
+        RecipeType<?> type = recipe.value().getType();
+        boolean fits = switch (bookMenu.getRecipeBookType()) {
+            case CRAFTING -> recipe.value() instanceof CraftingRecipe;
+            case FURNACE -> type == RecipeType.SMELTING;
+            case BLAST_FURNACE -> type == RecipeType.BLASTING;
+            case SMOKER -> type == RecipeType.SMOKING;
+            default -> true;
+        };
+        return fits && recipe.value().canCraftInDimensions(bookMenu.getGridWidth(), bookMenu.getGridHeight());
+    }
+
+    private void place(RecipeHolder<?> recipe, boolean placeAll) {
+        if (!canPlaceIntoMenu(recipe) || minecraft.player == null || minecraft.gameMode == null) {
+            return;
+        }
+        clearGhosts();
+        if (recipe.value() instanceof BrewingMixRecipe) {
+            NetworkManager.sendToServer(new PlaceBrewingPayload(recipe.id(), placeAll));
+            setupBrewingGhost(recipe, placeAll);
+            return;
+        }
+        minecraft.gameMode.handlePlaceRecipe(minecraft.player.containerMenu.containerId, recipe, placeAll);
+    }
+
+    private void clearGhosts() {
+        ghostRecipe.clear();
+        if (vanilla != null && menu != null && !menu.slots.isEmpty()) {
+            vanilla.slotClicked(menu.slots.getFirst());
+        }
+    }
+
+    public void setupGhostRecipe(RecipeHolder<?> recipe, List<Slot> slots) {
+        if (!(menu instanceof RecipeBookMenu<?, ?> bookMenu)) {
+            return;
+        }
+        ghostRecipe.clear();
+        ItemStack result = IngredientExtractor.result(recipe.value(), minecraft.level.registryAccess());
+        ghostRecipe.setRecipe(recipe);
+        ghostRecipe.addIngredient(Ingredient.of(result), slots.get(0).x, slots.get(0).y);
+        placeRecipe(bookMenu.getGridWidth(), bookMenu.getGridHeight(), bookMenu.getResultSlotIndex(), recipe,
+                recipe.value().getIngredients().iterator(), 0);
+    }
+
+    private void setupBrewingGhost(RecipeHolder<?> recipe, boolean placeAll) {
+        if (!(recipe.value() instanceof BrewingMixRecipe mix) || menu.slots.size() < 4) {
+            return;
+        }
+        ghostRecipe.clear();
+        ghostRecipe.setRecipe(recipe);
+        int bottles = placeAll ? 3 : 1;
+        int bottleLeft = countGhostStock(stack -> ItemStack.isSameItemSameComponents(stack, mix.input()));
+        for (int i = 0; i < bottles; i++) {
+            if (bottleLeft > 0) {
+                bottleLeft--;
+                continue;
+            }
+            Slot slot = menu.slots.get(i);
+            ghostRecipe.addIngredient(Ingredient.of(mix.input()), slot.x, slot.y);
+        }
+        if (countGhostStock(mix.reagent()) < 1) {
+            Slot ingredient = menu.slots.get(3);
+            ghostRecipe.addIngredient(mix.reagent(), ingredient.x, ingredient.y);
+        }
+    }
+
+    private int countGhostStock(Ingredient ingredient) {
+        return countGhostStock(ingredient::test);
+    }
+
+    private int countGhostStock(Predicate<ItemStack> match) {
+        int n = 0;
+        for (Slot slot : menu.slots) {
+            ItemStack stack = slot.getItem();
+            if (!stack.isEmpty() && match.test(stack)) {
+                n += stack.getCount();
+            }
+        }
+        return n;
+    }
+
+    @Override
+    public void addItemToSlot(Ingredient ingredient, int slot, int maxAmount, int x, int y) {
+        if (!ingredient.isEmpty()) {
+            Slot menuSlot = menu.slots.get(slot);
+            ghostRecipe.addIngredient(ingredient, menuSlot.x, menuSlot.y);
+        }
+    }
+
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (!visible) {
+            return false;
+        }
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            return false;
+        }
+        if (searchBox != null && searchBox.isFocused()) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                searchBox.setFocused(false);
+                return true;
+            }
+            searchBox.keyPressed(keyCode, scanCode, modifiers);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean charTyped(char codePoint, int modifiers) {
+        return visible && searchBox != null && searchBox.charTyped(codePoint, modifiers);
+    }
+
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (!visible) {
+            return false;
+        }
+        if (jeiDetail instanceof JeiDetailPanel jei && jei.mouseScrolled(mouseX, mouseY, delta)) {
+            return true;
+        }
+        boolean overTabs = mouseX >= bookX + panelWidth() - 8 && mouseX < bookX + panelWidth() + TAB_WIDTH
+                && mouseY >= bookY && mouseY < bookY + panelHeight();
+        if (overTabs && tabOverflow()) {
+            return scrollTabs(-(int) Math.signum(delta));
+        }
+        if (jeiDetail == null && mouseX >= bookX && mouseY >= bookY
+                && mouseX < bookX + panelWidth() && mouseY < bookY + panelHeight()) {
+            return page.mouseScrolled(delta);
+        }
+        return false;
+    }
+
+    public boolean blocksMouse(double mouseX, double mouseY) {
+        return visible && jeiDetail instanceof JeiDetailPanel jei && jei.blocksMouse(mouseX, mouseY);
+    }
+
+    public boolean isMouseOver(double mouseX, double mouseY) {
+        if (!visible) {
+            return false;
+        }
+        if (jeiDetail != null) {
+            if (jeiDetail.isMouseOver(mouseX, mouseY)) {
+                return true;
+            }
+        } else if (mouseX >= bookX && mouseY >= bookY && mouseX < bookX + panelWidth() && mouseY < bookY + panelHeight()) {
+            return true;
+        }
+        for (ModRecipeTabButton tab : tabs) {
+            if (tab.visible && tab.isMouseOver(mouseX, mouseY)) {
+                return true;
+            }
+        }
+        return overBookmark(mouseX, mouseY)
+                || (tabOverflow() && (overTabArrow(mouseX, mouseY, true) || overTabArrow(mouseX, mouseY, false)));
+    }
+
+    public void slotClicked(Slot slot) {
+        if (visible) {
+            clearGhosts();
+            updateCollections(false);
+        }
+    }
+
+    public void recipesUpdated() {
+        if (visible) {
+            updateCollections(false);
+            if (detailGroup != null) {
+                openDetail(detailGroup, detail != null ? detail : detailGroup.primary());
+            }
+        }
+    }
+
+    public void bookmarksUpdated() {
+        if (visible && bookmarkMode) {
+            updateCollections(false);
+        }
+    }
+
+    private void updateCollections(boolean resetPage) {
+        if (minecraft.level == null) {
+            return;
+        }
+        stackedContents.clear();
+        if (minecraft.player != null) {
+            minecraft.player.getInventory().fillStackedContents(stackedContents);
+            fillCraftSlots();
+            timesInventoryChanged = minecraft.player.getInventory().getTimesChanged();
+        }
+        List<RecipeHolder<?>> source;
+        if (selectedCategory == null) {
+            source = ModRecipeIndex.all();
+            if (RecipeCategoryConfig.hideVanillaBook()) {
+                source.addAll(ModRecipeIndex.recipesByItemMod("minecraft"));
+            }
+        } else {
+            RecipeCategoryConfig.Entry category = RecipeCategoryConfig.find(selectedCategory);
+            source = category == null ? List.of() : category.recipes();
+        }
+        Map<String, RecipeGroup> grouped = new LinkedHashMap<>();
+        String query = searchBox == null ? "" : searchBox.getValue().toLowerCase(Locale.ROOT);
+        for (RecipeHolder<?> holder : source) {
+            if (!isRecipeKnown(holder)) {
+                continue;
+            }
+            ItemStack result = IngredientExtractor.result(holder.value(), minecraft.level.registryAccess());
+            if (result.isEmpty()) {
+                continue;
+            }
+            if (!query.isEmpty()) {
+                String name = result.getHoverName().getString().toLowerCase(Locale.ROOT);
+                String id = holder.id().toString().toLowerCase(Locale.ROOT);
+                if (!name.contains(query) && !id.contains(query)) {
+                    continue;
+                }
+            }
+            String key = itemKey(result);
+            grouped.computeIfAbsent(key, k -> new RecipeGroup(result.copy(), new ArrayList<>())).recipes().add(holder);
+        }
+        addPlaceableRecipes(grouped);
+        List<RecipeGroup> collections = new ArrayList<>(grouped.values());
+        if (bookmarkMode) {
+            collections.removeIf(group -> !RecipeBookmarks.contains(itemKey(group.result())));
+        }
+        if (filteringCraftable) {
+            collections.removeIf(group -> {
+                for (RecipeHolder<?> holder : group.recipes()) {
+                    if (canCraft(holder)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+        }
+        page.setCollections(collections, resetPage, this::canCraft);
+    }
+
+    private void addPlaceableRecipes(Map<String, RecipeGroup> grouped) {
+        if (grouped.isEmpty() || minecraft.level == null) {
+            return;
+        }
+        for (RecipeHolder<?> holder : minecraft.level.getRecipeManager().getRecipes()) {
+            if (!isRecipeKnown(holder) || !canPlaceIntoMenu(holder)) {
+                continue;
+            }
+            ItemStack result = IngredientExtractor.result(holder.value(), minecraft.level.registryAccess());
+            if (result.isEmpty()) {
+                continue;
+            }
+            RecipeGroup group = grouped.get(itemKey(result));
+            if (group == null) {
+                continue;
+            }
+            boolean known = false;
+            for (RecipeHolder<?> existing : group.recipes()) {
+                if (existing.id().equals(holder.id())) {
+                    known = true;
+                    break;
+                }
+            }
+            if (!known) {
+                group.recipes().add(holder);
+            }
+        }
+    }
+
+    private boolean canCraft(RecipeHolder<?> holder) {
+        if (minecraft.player == null || menu == null) {
+            return false;
+        }
+        if (!canPlaceIntoMenu(holder)) {
+            return false;
+        }
+        if (menu instanceof RecipeBookMenu<?, ?> bookMenu
+                && !holder.value().canCraftInDimensions(bookMenu.getGridWidth(), bookMenu.getGridHeight())) {
+            return false;
+        }
+        return IngredientExtractor.canCraft(holder.value(), minecraft.player.getInventory(), stackedContents);
+    }
+
+    private boolean bookmarkChrome() {
+        return bookmarkMode && detail == null && jeiDetail == null && emptyDetail == null;
+    }
+
+    private void toggleBookmarkMode() {
+        if (bookmarkChrome()) {
+            bookmarkMode = false;
+        } else {
+            bookmarkMode = true;
+        }
+        if (menu != null) {
+            BOOKMARK_MODE.put(bookKey, bookmarkMode);
+        }
+        closeDetail();
+        ModRecipeTabButton.setBookmarkLook(bookmarkChrome());
+        applyFilterSprites();
+        updateCollections(true);
+        playClick();
+    }
+
+    private void applyFilterSprites() {
+        if (filterButton == null) {
+            return;
+        }
+        if (bookmarkChrome()) {
+            filterButton.initTextureValues(new WidgetSprites(
+                    ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/filter_enabled_bookmark"),
+                    ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/filter_disabled_bookmark"),
+                    ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/filter_enabled_highlighted_bookmark"),
+                    ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/filter_disabled_highlighted_bookmark")
+            ));
+            return;
+        }
+        filterButton.initTextureValues(new WidgetSprites(
+                ResourceLocation.withDefaultNamespace("recipe_book/filter_enabled"),
+                ResourceLocation.withDefaultNamespace("recipe_book/filter_disabled"),
+                ResourceLocation.withDefaultNamespace("recipe_book/filter_enabled_highlighted"),
+                ResourceLocation.withDefaultNamespace("recipe_book/filter_disabled_highlighted")
+        ));
+    }
+
+    private void renderBookmarkButton(GuiGraphics graphics, int mouseX, int mouseY) {
+        boolean hover = overBookmark(mouseX, mouseY);
+        ResourceLocation sprite = bookmarkChrome()
+                ? (hover ? BOOKMARK_HOVER_OPEN : BOOKMARK_ACTIVE)
+                : (hover ? BOOKMARK_HOVER_CLOSED : BOOKMARK);
+        graphics.blitSprite(sprite, bookmarkX(), bookmarkY(), BOOKMARK_W, BOOKMARK_H);
+    }
+
+    private void renderBookmarkHint(GuiGraphics graphics) {
+        int max = IMAGE_WIDTH - 28;
+        int iconW = 8;
+        int iconH = 11;
+        int gap = 3;
+        int color = 0xE0D0D0;
+        Component before = Component.translatable("gui.modrecipebook.bookmarks.empty_before");
+        java.util.List<FormattedCharSequence> rest = minecraft.font.split(
+                Component.translatable("gui.modrecipebook.bookmarks.empty_after"), max);
+        int lineH = 10;
+        int totalH = iconH + 4 + rest.size() * lineH;
+        int y = bookY + (IMAGE_HEIGHT - totalH) / 2;
+        int line1 = minecraft.font.width(before) + gap + iconW;
+        int x = bookX + (IMAGE_WIDTH - line1) / 2;
+        int textY = y + (iconH - 8) / 2;
+        graphics.drawString(minecraft.font, before, x, textY, color, false);
+        x += minecraft.font.width(before) + gap;
+        graphics.blitSprite(MOUSE_MIDDLE, x, y, iconW, iconH);
+        y += iconH + 4;
+        for (FormattedCharSequence line : rest) {
+            int w = minecraft.font.width(line);
+            graphics.drawString(minecraft.font, line, bookX + (IMAGE_WIDTH - w) / 2, y, color, false);
+            y += lineH;
+        }
+    }
+
+    private boolean overBookmark(double mouseX, double mouseY) {
+        int x = bookmarkX();
+        int y = bookmarkY();
+        return mouseX >= x && mouseX < x + BOOKMARK_W && mouseY >= y && mouseY < y + BOOKMARK_H;
+    }
+
+    private int bookmarkX() {
+        return bookX + panelWidth() - BOOKMARK_W - 7;
+    }
+
+    private int bookmarkY() {
+        return bookY + IMAGE_HEIGHT - BOOKMARK_H / 2 + 6;
+    }
+
+    private void renderItemBookmarkButton(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (!itemDetailBookmark()) {
+            return;
+        }
+        boolean hover = overItemBookmark(mouseX, mouseY);
+        ResourceLocation sprite = itemBookmarked()
+                ? (hover ? ITEM_BOOKMARK_ADDED_HOVER : ITEM_BOOKMARK_ADDED)
+                : (hover ? ITEM_BOOKMARK_HOVER : ITEM_BOOKMARK);
+        graphics.blitSprite(sprite, itemBookmarkX(), itemBookmarkY(), ITEM_BOOKMARK_W, ITEM_BOOKMARK_H);
+    }
+
+    private boolean itemDetailBookmark() {
+        return detailGroup != null;
+    }
+
+    private boolean itemBookmarked() {
+        return RecipeBookmarks.contains(itemKey(detailGroup.result()));
+    }
+
+    private boolean overItemBookmark(double mouseX, double mouseY) {
+        if (!itemDetailBookmark()) {
+            return false;
+        }
+        int x = itemBookmarkX();
+        int y = itemBookmarkY();
+        return mouseX >= x && mouseX < x + ITEM_BOOKMARK_W && mouseY >= y && mouseY < y + ITEM_BOOKMARK_H;
+    }
+
+    private int itemBookmarkX() {
+        return bookX + panelWidth() - ITEM_BOOKMARK_W - (jeiDetail != null ? 6 : 8);
+    }
+
+    private int itemBookmarkY() {
+        return bookY + (jeiDetail != null ? 4 : 6);
+    }
+}

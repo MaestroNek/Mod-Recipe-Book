@@ -1,0 +1,86 @@
+plugins {
+    id "com.gradleup.shadow" version "9.2.2"
+}
+
+architectury {
+    platformSetupLoomIde()
+    neoForge()
+}
+
+configurations {
+    common {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    shadowBundle {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentNeoForge.extendsFrom common
+}
+
+repositories {
+    maven { url = "https://maven.neoforged.net/releases" }
+}
+
+dependencies {
+    compileOnly "net.neoforged:neoforge:${rootProject.neo_version}:universal"
+    compileOnly "net.neoforged.fancymodloader:loader:4.0.42"
+    modImplementation "dev.architectury:architectury-neoforge:${rootProject.architectury_version}"
+
+    modCompileOnly "mezz.jei:jei-${rootProject.minecraft_version}-neoforge-api:${rootProject.jei_version}"
+    modLocalRuntime "mezz.jei:jei-${rootProject.minecraft_version}-neoforge:${rootProject.jei_version}"
+
+    common(project(path: ":common", configuration: "namedElements")) { transitive = false }
+    shadowBundle project(path: ":common", configuration: "transformProductionNeoForge")
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("META-INF/neoforge.mods.toml") {
+        expand "version": project.version,
+                "minecraft_version_range": minecraft_version_range,
+                "neo_version": neo_version,
+                "loader_version_range": loader_version_range,
+                "jei_version_range": jei_version_range,
+                "architectury_version": architectury_version
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = "dev-shadow"
+}
+
+remapJar {
+    inputFile.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveClassifier = null
+    // Loom's default target is intermediary (Fabric). NeoForge runs Mojmap, which is the "named" namespace here.
+    targetNamespace = "named"
+    doLast {
+        def jarFile = archiveFile.get().asFile
+        def swapped = new File(jarFile.parentFile, jarFile.name + ".tmp")
+        def refmap = '{"mappings":{},"data":{}}'
+        def zipIn = new java.util.zip.ZipFile(jarFile)
+        def zipOut = new java.util.zip.ZipOutputStream(new FileOutputStream(swapped))
+        try {
+            zipIn.entries().each { entry ->
+                zipOut.putNextEntry(new java.util.zip.ZipEntry(entry.name))
+                if (entry.name.endsWith("-refmap.json")) {
+                    zipOut.write(refmap.getBytes("UTF-8"))
+                } else {
+                    zipIn.getInputStream(entry).transferTo(zipOut)
+                }
+                zipOut.closeEntry()
+            }
+        } finally {
+            zipOut.close()
+            zipIn.close()
+        }
+        jarFile.delete()
+        swapped.renameTo(jarFile)
+    }
+}

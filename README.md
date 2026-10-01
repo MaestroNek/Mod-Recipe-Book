@@ -21,12 +21,33 @@ Recipe layouts come from [JEI](https://github.com/mezz/JustEnoughItems).
 
 ## Requirements
 
+NeoForge:
+
 - NeoForge
+- Architectury API
 - JEI
+
+Fabric:
+
+- Fabric Loader
+- Fabric API
+- Architectury API
+- JEI
+- Mod Menu (Not required, but recommended, as it allows you to configure the categories and other mod options)
 
 ## Install
 
-Put `modrecipebook-x.x.x.jar` in the `mods` folder together with NeoForge and JEI.
+Put the matching jar in `mods` together with the loader, Architectury API, and JEI:
+
+- `modrecipebook-xxx-x.x.x.jar`
+
+## Build
+
+```
+./gradlew build
+```
+
+Run clients with `./gradlew :neoforge:runClient` or `./gradlew :fabric:runClient`.
 
 ## License
 

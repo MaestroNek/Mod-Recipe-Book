@@ -35,6 +35,9 @@ bin/
 ### Local deps and extracted assets ###
 libs/
 temp_extract/
+gradle/plugin-repo/
+gradle/m2/
+gradle-compile.log
 
 ### Minecraft Modding ###
 run/

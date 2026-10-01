@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "com.minemod.modrecipebook.fabric.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "ScreenCharMixin",
+    "ScreenWidgetInvoker"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

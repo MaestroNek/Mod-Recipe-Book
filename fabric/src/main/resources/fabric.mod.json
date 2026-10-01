@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "modrecipebook",
+  "version": "${version}",
+  "name": "Mod Recipe Book",
+  "description": "A progression-based recipe book with items from mods. Discover items, unlock recipes, and learn mods as you play.",
+  "authors": ["MaestroNek"],
+  "license": "MIT",
+  "icon": "logo.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.minemod.modrecipebook.fabric.ModRecipeBookFabric"],
+    "client": ["com.minemod.modrecipebook.fabric.ModRecipeBookFabricClient"],
+    "jei_mod_plugin": ["com.minemod.modrecipebook.client.jei.ModJeiPlugin"],
+    "modmenu": ["com.minemod.modrecipebook.fabric.ModMenuIntegration"]
+  },
+  "mixins": [
+    "modrecipebook.mixins.json",
+    "modrecipebook.fabric.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*",
+    "architectury": ">=13.0.8",
+    "jei": ">=19.21.0"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}
