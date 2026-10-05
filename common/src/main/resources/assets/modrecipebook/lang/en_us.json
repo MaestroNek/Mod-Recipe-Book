@@ -20,6 +20,8 @@
   "gui.modrecipebook.config.require_all.tooltip": "A recipe unlocks only after you have found every item in it.",
   "gui.modrecipebook.config.require_method": "Require a known crafting method to unlock a recipe",
   "gui.modrecipebook.config.require_method.tooltip": "A recipe unlocks only after you have found workstation/tool used in that recipe",
+  "gui.modrecipebook.config.unlock_affects": "Changing this setting will affect recipes you already know.",
+  "gui.modrecipebook.config.server_locked": "Configured on the server",
   "gui.modrecipebook.config.locked": "Not editable",
   "gui.modrecipebook.config.add": "Add category",
   "gui.modrecipebook.config.edit": "Edit",

@@ -45,6 +45,8 @@ public final class RecipeCategoryConfig {
     private static boolean hideVanillaBook = true;
     private static boolean requireAllIngredients = true;
     private static boolean requireCraftingMethod = true;
+    private static int unlockRules;
+    private static final Map<String, Integer> APPLIED_RULES = new HashMap<>();
     private static final Map<String, Integer> BOOK_BUTTON_LAYOUT = new HashMap<>();
     private static final int DEFAULTS = 1;
 
@@ -102,6 +104,23 @@ public final class RecipeCategoryConfig {
     public static void setRequireAllIngredients(boolean value) {
         requireAllIngredients = value;
         UnlockOptions.requireAllIngredients = value;
+        unlockRules++;
+        save();
+    }
+
+    public static int unlockRules() {
+        return unlockRules;
+    }
+
+    public static boolean rulesApplied(String world) {
+        return world != null && APPLIED_RULES.getOrDefault(world, 0) == unlockRules;
+    }
+
+    public static void markRulesApplied(String world) {
+        if (world == null) {
+            return;
+        }
+        APPLIED_RULES.put(world, unlockRules);
         save();
     }
 
@@ -112,6 +131,7 @@ public final class RecipeCategoryConfig {
     public static void setRequireCraftingMethod(boolean value) {
         requireCraftingMethod = value;
         UnlockOptions.requireCraftingMethod = value;
+        unlockRules++;
         save();
     }
 
@@ -122,6 +142,8 @@ public final class RecipeCategoryConfig {
         hideVanillaBook = true;
         requireAllIngredients = true;
         requireCraftingMethod = true;
+        unlockRules = 0;
+        APPLIED_RULES.clear();
         try {
             if (!Files.exists(file())) {
                 CATEGORIES.add(defaultMinecraft());
@@ -149,6 +171,12 @@ public final class RecipeCategoryConfig {
                 }
                 if (data.requireCraftingMethod != null) {
                     requireCraftingMethod = data.requireCraftingMethod;
+                }
+                if (data.unlockRules != null) {
+                    unlockRules = data.unlockRules;
+                }
+                if (data.appliedUnlockRules != null) {
+                    APPLIED_RULES.putAll(data.appliedUnlockRules);
                 }
                 if (data.bookButtonLayout != null) {
                     for (Map.Entry<String, Integer> entry : data.bookButtonLayout.entrySet()) {
@@ -206,6 +234,8 @@ public final class RecipeCategoryConfig {
                 data.hideVanillaBook = hideVanillaBook;
                 data.requireAllIngredients = requireAllIngredients;
                 data.requireCraftingMethod = requireCraftingMethod;
+                data.unlockRules = unlockRules;
+                data.appliedUnlockRules = APPLIED_RULES;
                 data.bookButtonLayout = BOOK_BUTTON_LAYOUT;
                 data.defaults = DEFAULTS;
                 data.categories = CATEGORIES;
@@ -316,6 +346,8 @@ public final class RecipeCategoryConfig {
         Boolean hideVanillaBook;
         Boolean requireAllIngredients;
         Boolean requireCraftingMethod;
+        Integer unlockRules;
+        Map<String, Integer> appliedUnlockRules;
         Map<String, Boolean> bookButtonsHorizontal;
         Map<String, Integer> bookButtonLayout;
         Integer defaults;

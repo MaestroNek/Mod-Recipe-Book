@@ -1,5 +1,11 @@
 package com.minemod.modrecipebook.client;
 
+import com.minemod.modrecipebook.ModRecipeBook;
+import com.minemod.modrecipebook.mixin.CheckboxAccessor;
+import com.minemod.modrecipebook.net.DebugUnlockPayload;
+import dev.architectury.networking.NetworkManager;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
@@ -35,6 +41,65 @@ public class CategorySettingsScreen extends Screen {
             ResourceLocation.withDefaultNamespace("widget/scroller");
     private static final ResourceLocation SCROLLER_BG =
             ResourceLocation.withDefaultNamespace("widget/scroller_background");
+    private static boolean remoteRules;
+    private static boolean remoteAll = true;
+    private static boolean remoteMethod = true;
+
+    public static void applyServerRules(boolean requireAll, boolean requireMethod) {
+        if (Minecraft.getInstance().getSingleplayerServer() != null) {
+            remoteRules = false;
+            return;
+        }
+        remoteRules = true;
+        remoteAll = requireAll;
+        remoteMethod = requireMethod;
+        if (Minecraft.getInstance().screen instanceof CategorySettingsScreen screen) {
+            screen.rebuildWidgets();
+        }
+    }
+
+    public static void clearServerRules() {
+        remoteRules = false;
+    }
+
+    private static Tooltip unlockTooltip(String key) {
+        Component body = Component.translatable(key).withStyle(ChatFormatting.WHITE)
+                .append(Component.literal("\n"))
+                .append(Component.translatable("gui.modrecipebook.config.unlock_affects").withStyle(ChatFormatting.RED));
+        if (!remoteRules) {
+            return Tooltip.create(body);
+        }
+        return Tooltip.create(Component.translatable("gui.modrecipebook.config.server_locked").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("\n\n"))
+                .append(body));
+    }
+
+    private Checkbox unlockCheckbox(String label, String tooltip, int y, boolean selected, java.util.function.Consumer<Boolean> change) {
+        Checkbox box = Checkbox.builder(Component.translatable(label), font)
+                .pos(panelLeft(), y)
+                .selected(selected)
+                .tooltip(unlockTooltip(tooltip))
+                .onValueChange((widget, value) -> {
+                    if (!remoteRules) {
+                        change.accept(value);
+                    }
+                })
+                .build();
+        if (remoteRules) {
+            box.active = false;
+            box.setAlpha(0.45F);
+            ((CheckboxAccessor) box).modrecipebook$text().setColor(0xFF707070);
+        }
+        return box;
+    }
+
+    private void rethinkRecipes() {
+        if (minecraft != null && minecraft.player != null && minecraft.level != null && minecraft.getConnection() != null) {
+            NetworkManager.sendToServer(new DebugUnlockPayload(DebugUnlockPayload.RETHINK));
+            RecipeCategoryConfig.markRulesApplied(ModRecipeBook.currentWorldKey());
+        }
+    }
+
     private final Screen parent;
     private int listLeft;
     private int listTop;
@@ -70,18 +135,18 @@ public class CategorySettingsScreen extends Screen {
                 .tooltip(Tooltip.create(Component.translatable("gui.modrecipebook.config.hide_vanilla.tooltip")))
                 .onValueChange((box, value) -> RecipeCategoryConfig.setHideVanillaBook(value))
                 .build());
-        addRenderableWidget(Checkbox.builder(Component.translatable("gui.modrecipebook.config.require_all"), font)
-                .pos(panelLeft(), 68)
-                .selected(RecipeCategoryConfig.requireAllIngredients())
-                .tooltip(Tooltip.create(Component.translatable("gui.modrecipebook.config.require_all.tooltip")))
-                .onValueChange((box, value) -> RecipeCategoryConfig.setRequireAllIngredients(value))
-                .build());
-        addRenderableWidget(Checkbox.builder(Component.translatable("gui.modrecipebook.config.require_method"), font)
-                .pos(panelLeft(), 88)
-                .selected(RecipeCategoryConfig.requireCraftingMethod())
-                .tooltip(Tooltip.create(Component.translatable("gui.modrecipebook.config.require_method.tooltip")))
-                .onValueChange((box, value) -> RecipeCategoryConfig.setRequireCraftingMethod(value))
-                .build());
+        addRenderableWidget(unlockCheckbox("gui.modrecipebook.config.require_all",
+                "gui.modrecipebook.config.require_all.tooltip", 68,
+                remoteRules ? remoteAll : RecipeCategoryConfig.requireAllIngredients(), value -> {
+                    RecipeCategoryConfig.setRequireAllIngredients(value);
+                    rethinkRecipes();
+                }));
+        addRenderableWidget(unlockCheckbox("gui.modrecipebook.config.require_method",
+                "gui.modrecipebook.config.require_method.tooltip", 88,
+                remoteRules ? remoteMethod : RecipeCategoryConfig.requireCraftingMethod(), value -> {
+                    RecipeCategoryConfig.setRequireCraftingMethod(value);
+                    rethinkRecipes();
+                }));
         List<RecipeCategoryConfig.Entry> categories = RecipeCategoryConfig.all();
         int shown = Math.min(visibleRows, Math.max(0, rowCount() - listScroll));
         for (int i = 0; i < shown; i++) {

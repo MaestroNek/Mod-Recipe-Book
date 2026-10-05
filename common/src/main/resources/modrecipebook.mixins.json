@@ -11,7 +11,9 @@
     "AbstractContainerScreenAccessor",
     "BrewingStandScreenMixin",
     "RecipeBookComponentMixin",
-    "RecipeToastMixin"
+    "RecipeToastMixin",
+    "CheckboxMixin",
+    "CheckboxAccessor"
   ],
     "mixins": [
     "PotionBrewingAccessor",

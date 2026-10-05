@@ -2,6 +2,7 @@ package com.minemod.modrecipebook.recipe;
 
 import com.minemod.modrecipebook.net.BookmarkSyncPayload;
 import com.minemod.modrecipebook.net.UnlockRecipesPayload;
+import com.minemod.modrecipebook.net.UnlockRulesPayload;
 import com.minemod.modrecipebook.net.DebugUnlockPayload;
 import com.minemod.modrecipebook.platform.Platform;
 import dev.architectury.networking.NetworkManager;
@@ -56,6 +57,8 @@ public final class ModRecipeUnlocker {
 
     private static void login(ServerPlayer player) {
         syncAll(player);
+        NetworkManager.sendToPlayer(player, new UnlockRulesPayload(
+                UnlockOptions.requireAllIngredients, UnlockOptions.requireCraftingMethod));
         checkInventory(player, true, true);
     }
 
