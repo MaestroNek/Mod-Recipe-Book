@@ -577,6 +577,24 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         }
     }
 
+    public void renderGhostTooltip(GuiGraphics graphics, int leftPos, int topPos, int mouseX, int mouseY) {
+        if (!visible) {
+            return;
+        }
+        ItemStack hovered = ItemStack.EMPTY;
+        for (int i = 0; i < ghostRecipe.size(); i++) {
+            GhostRecipe.GhostIngredient ingredient = ghostRecipe.get(i);
+            int x = ingredient.getX() + leftPos;
+            int y = ingredient.getY() + topPos;
+            if (mouseX >= x && mouseY >= y && mouseX < x + 16 && mouseY < y + 16) {
+                hovered = ingredient.getItem();
+            }
+        }
+        if (!hovered.isEmpty()) {
+            graphics.renderComponentTooltip(minecraft.font, Screen.getTooltipFromItem(minecraft, hovered), mouseX, mouseY);
+        }
+    }
+
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (!visible) {
             return false;

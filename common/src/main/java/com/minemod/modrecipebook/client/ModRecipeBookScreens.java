@@ -118,11 +118,11 @@ public final class ModRecipeBookScreens {
         }
         book.render(graphics, mouseX, mouseY, partialTick);
         book.renderGhostRecipe(graphics, GuiOrigin.x(container), GuiOrigin.y(container), partialTick);
-        if (book.blocksMouse(realMouseX(), realMouseY())) {
-            book.renderTooltip(graphics, realMouseX(), realMouseY());
-        } else {
-            book.renderTooltip(graphics, mouseX, mouseY);
+        boolean pinned = book.blocksMouse(realMouseX(), realMouseY());
+        if (!pinned) {
+            book.renderGhostTooltip(graphics, GuiOrigin.x(container), GuiOrigin.y(container), mouseX, mouseY);
         }
+        book.renderTooltip(graphics, pinned ? realMouseX() : mouseX, pinned ? realMouseY() : mouseY);
     }
 
     /** Mouse position the screen should see: off-screen while it is over a pinned book tooltip. */
