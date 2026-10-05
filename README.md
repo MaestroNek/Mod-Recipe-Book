@@ -17,7 +17,6 @@ Recipe layouts come from [JEI](https://github.com/mezz/JustEnoughItems).
 - **Potion recipes** supported
 - **Fluids recipes** supported (not shown in book, but available in recipe layout)
 - Left click a recipe to place it in the grid, left click + shift to place maximum, right click to open the item recipes layout 
-- When the vanilla book is disabled, vanilla recipes appear in **All Recipes**
 
 ## Requirements
 

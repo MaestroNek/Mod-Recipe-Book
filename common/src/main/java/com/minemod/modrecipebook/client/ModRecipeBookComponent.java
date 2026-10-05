@@ -1061,9 +1061,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         List<RecipeHolder<?>> source;
         if (selectedCategory == null) {
             source = ModRecipeIndex.all();
-            if (RecipeCategoryConfig.hideVanillaBook()) {
-                source.addAll(ModRecipeIndex.recipesByItemMod("minecraft"));
-            }
+            source.addAll(ModRecipeIndex.recipesByItemMod("minecraft"));
         } else {
             RecipeCategoryConfig.Entry category = RecipeCategoryConfig.find(selectedCategory);
             source = category == null ? List.of() : category.recipes();
