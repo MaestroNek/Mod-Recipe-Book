@@ -99,6 +99,14 @@ public final class PlatformImpl {
         holder(player).setData(NeoAttachments.BOOKMARKS, new LinkedHashSet<>(value));
     }
 
+    public static boolean vanillaImported(ServerPlayer player) {
+        return holder(player).getData(NeoAttachments.VANILLA_IMPORTED);
+    }
+
+    public static void setVanillaImported(ServerPlayer player, boolean value) {
+        holder(player).setData(NeoAttachments.VANILLA_IMPORTED, value);
+    }
+
     public static boolean absorbFluids(Object value, Set<ResourceLocation> out) {
         if (value instanceof FluidStack stack) {
             add(stack.getFluid(), out);

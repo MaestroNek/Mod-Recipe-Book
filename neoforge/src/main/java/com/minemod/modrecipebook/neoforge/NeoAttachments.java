@@ -1,6 +1,7 @@
 package com.minemod.modrecipebook.neoforge;
 
 import com.minemod.modrecipebook.recipe.RecipeCodecs;
+import com.mojang.serialization.Codec;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -35,6 +36,14 @@ public final class NeoAttachments {
             "bookmarks",
             () -> AttachmentType.builder(() -> (Set<String>) new LinkedHashSet<String>())
                     .serialize(RecipeCodecs.KEYS)
+                    .copyOnDeath()
+                    .build()
+    );
+
+    public static final Supplier<AttachmentType<Boolean>> VANILLA_IMPORTED = TYPES.register(
+            "vanilla_book_imported",
+            () -> AttachmentType.builder(() -> false)
+                    .serialize(Codec.BOOL)
                     .copyOnDeath()
                     .build()
     );

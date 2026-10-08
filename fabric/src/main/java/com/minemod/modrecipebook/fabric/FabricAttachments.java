@@ -2,6 +2,7 @@ package com.minemod.modrecipebook.fabric;
 
 import com.minemod.modrecipebook.ModRecipeBook;
 import com.minemod.modrecipebook.recipe.RecipeCodecs;
+import com.mojang.serialization.Codec;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
 import net.minecraft.resources.ResourceLocation;
@@ -24,6 +25,11 @@ public final class FabricAttachments {
     public static final AttachmentType<Set<String>> BOOKMARKS = AttachmentRegistry.create(
             ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "bookmarks"),
             builder -> builder.initializer(LinkedHashSet::new).persistent(RecipeCodecs.KEYS).copyOnDeath()
+    );
+
+    public static final AttachmentType<Boolean> VANILLA_IMPORTED = AttachmentRegistry.create(
+            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "vanilla_book_imported"),
+            builder -> builder.initializer(() -> false).persistent(Codec.BOOL).copyOnDeath()
     );
 
     public static void register() {

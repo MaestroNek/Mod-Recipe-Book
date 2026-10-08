@@ -71,6 +71,16 @@ public final class Platform {
     }
 
     @ExpectPlatform
+    public static boolean vanillaImported(ServerPlayer player) {
+        throw new AssertionError();
+    }
+
+    @ExpectPlatform
+    public static void setVanillaImported(ServerPlayer player, boolean value) {
+        throw new AssertionError();
+    }
+
+    @ExpectPlatform
     public static boolean absorbFluids(Object value, Set<ResourceLocation> out) {
         throw new AssertionError();
     }

@@ -85,6 +85,14 @@ public final class PlatformImpl {
         player.setAttached(FabricAttachments.BOOKMARKS, new LinkedHashSet<>(value));
     }
 
+    public static boolean vanillaImported(ServerPlayer player) {
+        return player.getAttachedOrCreate(FabricAttachments.VANILLA_IMPORTED);
+    }
+
+    public static void setVanillaImported(ServerPlayer player, boolean value) {
+        player.setAttached(FabricAttachments.VANILLA_IMPORTED, value);
+    }
+
     public static boolean absorbFluids(Object value, Set<ResourceLocation> out) {
         if (value instanceof FluidVariant variant && !variant.isBlank()) {
             Fluid fluid = variant.getFluid();

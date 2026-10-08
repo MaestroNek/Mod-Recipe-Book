@@ -29,6 +29,7 @@ import java.util.WeakHashMap;
 
 public final class ModRecipeUnlocker {
     private static final Map<ServerPlayer, Integer> swept = new WeakHashMap<>();
+    private static final Map<ServerPlayer, Boolean> syncQueued = new WeakHashMap<>();
 
     private ModRecipeUnlocker() {}
 
@@ -36,16 +37,28 @@ public final class ModRecipeUnlocker {
         PotionBrewing brewing = server.overworld() == null ? PotionBrewing.EMPTY : server.overworld().potionBrewing();
         ModRecipeIndex.rebuild(server.getRecipeManager(), server.registryAccess(), brewing);
         if (only != null) {
-            login(only);
+            syncQueued.put(only, Boolean.TRUE);
         } else {
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                login(player);
+                syncQueued.put(player, Boolean.TRUE);
             }
         }
     }
 
     public static void onPlayerTick(Player entity) {
         if (!(entity instanceof ServerPlayer player)) {
+            return;
+        }
+        if (syncQueued.remove(player) != null) {
+            if (!finishVanillaImport(player)) {
+                syncQueued.put(player, Boolean.TRUE);
+                return;
+            }
+            syncAll(player);
+            NetworkManager.sendToPlayer(player, new UnlockRulesPayload(
+                    UnlockOptions.requireAllIngredients, UnlockOptions.requireCraftingMethod));
+            checkInventory(player, true, true);
+            swept.put(player, ModRecipeIndex.stationsGeneration());
             return;
         }
         if (player.tickCount % 10 != 0) {
@@ -55,11 +68,30 @@ public final class ModRecipeUnlocker {
         checkInventory(player, true, staleStations);
     }
 
-    private static void login(ServerPlayer player) {
-        syncAll(player);
-        NetworkManager.sendToPlayer(player, new UnlockRulesPayload(
-                UnlockOptions.requireAllIngredients, UnlockOptions.requireCraftingMethod));
-        checkInventory(player, true, true);
+    private static boolean finishVanillaImport(ServerPlayer player) {
+        if (Platform.vanillaImported(player)) {
+            return true;
+        }
+        if (ModRecipeIndex.indexed().isEmpty()) {
+            return false;
+        }
+        Set<ResourceLocation> unlocked = orderedUnlocked(player);
+        var book = player.getRecipeBook();
+        int added = 0;
+        for (RecipeHolder<?> holder : ModRecipeIndex.indexed()) {
+            if (book.contains(holder.id()) && unlocked.add(holder.id())) {
+                added++;
+            }
+        }
+        // Fabric joins before the recipe book is readable; wait and try again.
+        if (added == 0 && player.tickCount < 200) {
+            return false;
+        }
+        if (added > 0) {
+            Platform.setUnlocked(player, unlocked);
+        }
+        Platform.setVanillaImported(player, true);
+        return true;
     }
 
     public static void debug(ServerPlayer player, byte action) {
