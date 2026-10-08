@@ -18,6 +18,11 @@ Recipe layouts come from [JEI](https://github.com/mezz/JustEnoughItems).
 - **Fluids recipes** supported (not shown in book, but available in recipe layout)
 - Left click a recipe to place it in the grid, left click + shift to place maximum, right click to open the item recipes layout 
 
+## Download
+
+- [Modrinth](https://modrinth.com/mod/mod-recipe-book)
+- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/mod-recipe-book)
+
 ## Requirements
 
 NeoForge:
