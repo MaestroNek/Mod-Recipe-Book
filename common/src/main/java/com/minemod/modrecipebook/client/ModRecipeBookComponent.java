@@ -14,6 +14,7 @@ import com.minemod.modrecipebook.recipe.ModRecipeIndex;
 import com.minemod.modrecipebook.recipe.PotionKeys;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.components.StateSwitchingButton;
@@ -1076,12 +1077,8 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             if (result.isEmpty()) {
                 continue;
             }
-            if (!query.isEmpty()) {
-                String name = result.getHoverName().getString().toLowerCase(Locale.ROOT);
-                String id = holder.id().toString().toLowerCase(Locale.ROOT);
-                if (!name.contains(query) && !id.contains(query)) {
-                    continue;
-                }
+            if (!matchesSearch(result, query)) {
+                continue;
             }
             String key = itemKey(result);
             grouped.computeIfAbsent(key, k -> new RecipeGroup(result.copy(), new ArrayList<>())).recipes().add(holder);
@@ -1102,6 +1099,29 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             });
         }
         page.setCollections(collections, resetPage, this::canCraft);
+    }
+
+    private static boolean matchesSearch(ItemStack stack, String query) {
+        if (query.isEmpty()) {
+            return true;
+        }
+        String name = stack.getHoverName().getString().toLowerCase(Locale.ROOT);
+        String namespace = BuiltInRegistries.ITEM.getKey(stack.getItem()).getNamespace().toLowerCase(Locale.ROOT);
+        String mod = RecipeCategoryConfig.modName(namespace).toLowerCase(Locale.ROOT);
+        for (String token : query.split(" ")) {
+            if (token.isEmpty()) {
+                continue;
+            }
+            if (token.charAt(0) == '@') {
+                String modQuery = token.substring(1);
+                if (modQuery.isEmpty() || (!namespace.contains(modQuery) && !mod.contains(modQuery))) {
+                    return false;
+                }
+            } else if (!name.contains(token)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void addPlaceableRecipes(Map<String, RecipeGroup> grouped) {
