@@ -442,12 +442,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
                 refreshLayout();
             }
         }
-        if (searchBox != null) {
-            if (!lastSearch.equals(searchBox.getValue())) {
-                lastSearch = searchBox.getValue();
-                updateCollections(false);
-            }
-        }
+        applySearch();
         int timesChanged = minecraft.player == null ? 0 : minecraft.player.getInventory().getTimesChanged();
         if (timesChanged != timesInventoryChanged) {
             timesInventoryChanged = timesChanged;
@@ -975,13 +970,30 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
                 return true;
             }
             searchBox.keyPressed(keyCode, scanCode, modifiers);
+            applySearch();
             return true;
         }
         return false;
     }
 
     public boolean charTyped(char codePoint, int modifiers) {
-        return visible && searchBox != null && searchBox.charTyped(codePoint, modifiers);
+        if (!visible || searchBox == null || jeiDetail != null || detail != null || emptyDetail != null) {
+            return false;
+        }
+        if (!searchBox.isFocused() && screen != null && screen.getFocused() instanceof EditBox other && other != searchBox) {
+            return false;
+        }
+        searchBox.setFocused(true);
+        boolean typed = searchBox.charTyped(codePoint, modifiers);
+        applySearch();
+        return typed;
+    }
+
+    private void applySearch() {
+        if (searchBox != null && !lastSearch.equals(searchBox.getValue())) {
+            lastSearch = searchBox.getValue();
+            updateCollections(false);
+        }
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
