@@ -39,6 +39,16 @@ public final class IngredientExtractor {
         reflectIngredients(recipe, "getSourceIngredient", list);
         reflectIngredients(recipe, "getTool", list);
         reflectIngredients(recipe, "tool", list);
+        // Field names are Mojmap. On Fabric they are remapped, so read them through the accessor.
+        if (recipe instanceof SmithingParts smithing) {
+            addIngredient(smithing.modrecipebook$template(), list);
+            addIngredient(smithing.modrecipebook$base(), list);
+            addIngredient(smithing.modrecipebook$addition(), list);
+        } else {
+            reflectIngredients(recipe, "template", list);
+            reflectIngredients(recipe, "base", list);
+            reflectIngredients(recipe, "addition", list);
+        }
         if (list.isEmpty()) {
             reflectIngredients(recipe, "getItemIngredients", list);
             reflectIngredients(recipe, "itemIngredients", list);
@@ -47,6 +57,12 @@ public final class IngredientExtractor {
         }
         addSequencedIngredients(recipe, list);
         return list;
+    }
+
+    private static void addIngredient(Ingredient ingredient, List<Ingredient> out) {
+        if (ingredient != null && !ingredient.isEmpty()) {
+            out.add(ingredient);
+        }
     }
 
     private static boolean hasDeclaredIngredients(Recipe<?> recipe) {
@@ -144,6 +160,15 @@ public final class IngredientExtractor {
             return ingredientKnown(mix.reagent(), known) && knownIds.contains(PotionKeys.knownId(mix.input()));
         }
         return allIngredientsKnown(recipe, known);
+    }
+
+    public static boolean anyIngredientKnown(Recipe<?> recipe, Set<Item> known) {
+        for (Ingredient ingredient : items(recipe)) {
+            if (ingredientKnown(ingredient, known)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static boolean allIngredientsKnown(Recipe<?> recipe, Set<Item> known) {

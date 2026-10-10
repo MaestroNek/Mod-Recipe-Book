@@ -18,6 +18,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.alchemy.PotionBrewing;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.SmithingRecipe;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -237,6 +238,9 @@ public final class ModRecipeUnlocker {
                     if (unlocked.contains(holder.id())) {
                         continue;
                     }
+                    if (!smithingInputsMatch(holder.value(), knownItems, requireAll)) {
+                        continue;
+                    }
                     if (requireAll && !ModRecipeIndex.allUnlockItemsKnown(holder, knownItems, knownIds)) {
                         continue;
                     }
@@ -271,6 +275,9 @@ public final class ModRecipeUnlocker {
                 }
                 ItemStack result = IngredientExtractor.result(holder.value(), access);
                 boolean resultKnown = PotionKeys.knownId(result).equals(key);
+                if (!resultKnown && !smithingInputsMatch(holder.value(), knownItems, requireAll)) {
+                    continue;
+                }
                 if (!resultKnown && requireAll
                         && !ModRecipeIndex.allUnlockItemsKnown(holder, knownItems, knownIds)) {
                     continue;
@@ -294,6 +301,15 @@ public final class ModRecipeUnlocker {
     private static Set<ResourceLocation> orderedUnlocked(ServerPlayer player) {
         Set<ResourceLocation> unlocked = Platform.unlocked(player);
         return unlocked instanceof LinkedHashSet ? unlocked : new LinkedHashSet<>(unlocked);
+    }
+
+    private static boolean smithingInputsMatch(net.minecraft.world.item.crafting.Recipe<?> recipe, Set<Item> known, boolean requireAll) {
+        if (!(recipe instanceof SmithingRecipe)) {
+            return true;
+        }
+        return requireAll
+                ? IngredientExtractor.allIngredientsKnown(recipe, known)
+                : IngredientExtractor.anyIngredientKnown(recipe, known);
     }
 
     private static Set<Item> knownItemSet(Set<ResourceLocation> knownIds) {

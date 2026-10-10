@@ -19,7 +19,9 @@
     "PotionBrewingAccessor",
     "PotionMixAccessor",
     "RecipeBookMixin",
-    "ServerGamePacketListenerImplMixin"
+    "ServerGamePacketListenerImplMixin",
+    "SmithingTransformAccessor",
+    "SmithingTrimAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
