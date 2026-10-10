@@ -250,23 +250,28 @@ public final class JeiRecipeLookup {
     }
 
     private static boolean categoryAllowed(RecipeHolder<?> holder, IRecipeCategory<?> category) {
-        if (preferredCategory(holder, category)) {
+        if (!RecipeCategoryConfig.requireCraftingMethod()) {
             return true;
         }
-        return !RecipeCategoryConfig.requireCraftingMethod() || catalystKnown(category);
+        List<Item> stations = stations(category);
+        return stations.isEmpty() ? preferredCategory(holder, category)
+                : stations.stream().anyMatch(JeiRecipeLookup::stationKnown);
     }
 
     private static boolean catalystKnown(IRecipeCategory<?> category) {
-        for (ItemStack stack : ModJeiPlugin.runtime().getRecipeManager()
-                .createRecipeCatalystLookup(category.getRecipeType()).getItemStack().toList()) {
-            if (stack == null || stack.isEmpty() || stack.getItem() == Items.CRAFTING_TABLE) {
-                continue;
-            }
-            if (ClientUnlockedRecipes.isItemKnown(stack.getItem())) {
-                return true;
-            }
-        }
-        return false;
+        return stations(category).stream().anyMatch(JeiRecipeLookup::stationKnown);
+    }
+
+    private static boolean stationKnown(Item item) {
+        return item == Items.CRAFTING_TABLE || ClientUnlockedRecipes.isItemKnown(item);
+    }
+
+    private static List<Item> stations(IRecipeCategory<?> category) {
+        return ModJeiPlugin.runtime().getRecipeManager()
+                .createRecipeCatalystLookup(category.getRecipeType()).getItemStack()
+                .filter(stack -> stack != null && !stack.isEmpty())
+                .map(ItemStack::getItem)
+                .toList();
     }
 
     public static Optional<JeiRecipeBinding> resolve(RecipeHolder<?> holder) {

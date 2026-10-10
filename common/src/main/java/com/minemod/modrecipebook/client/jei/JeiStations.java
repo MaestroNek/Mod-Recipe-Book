@@ -3,6 +3,7 @@ package com.minemod.modrecipebook.client.jei;
 import com.minemod.modrecipebook.recipe.ModRecipeIndex;
 import com.minemod.modrecipebook.recipe.ModRecipeUnlocker;
 import mezz.jei.api.recipe.IRecipeManager;
+import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -10,10 +11,11 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
-import net.minecraft.world.item.crafting.RecipeType;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -25,35 +27,29 @@ public final class JeiStations {
             return;
         }
         IRecipeManager recipes = ModJeiPlugin.runtime().getRecipeManager();
-        Map<ResourceLocation, IRecipeCategory<?>> categoryById = new HashMap<>();
+        Map<ResourceLocation, List<IRecipeCategory<?>>> categoriesById = new HashMap<>();
         for (IRecipeCategory<?> category : recipes.createRecipeCategoryLookup().get().toList()) {
             for (Object recipe : recipes.createRecipeLookup(category.getRecipeType()).get().toList()) {
                 ResourceLocation id = idOf(category, recipe);
                 if (id != null) {
-                    categoryById.putIfAbsent(id, category);
+                    categoriesById.computeIfAbsent(id, key -> new ArrayList<>()).add(category);
                 }
             }
         }
-        Map<RecipeType<?>, Set<Item>> byType = new HashMap<>();
-        for (RecipeHolder<?> holder : ModRecipeIndex.indexed()) {
-            RecipeType<?> type = holder.value().getType();
-            if (ModRecipeIndex.hasFixedStations(type) || byType.containsKey(type)) {
-                continue;
-            }
-            IRecipeCategory<?> category = categoryById.get(holder.id());
-            if (category == null) {
-                byType.put(type, Set.of());
-                continue;
-            }
+        Map<RecipeType<?>, List<Item>> catalysts = new HashMap<>();
+        Map<ResourceLocation, Set<Item>> byRecipe = new HashMap<>();
+        categoriesById.forEach((id, categories) -> {
             LinkedHashSet<Item> items = new LinkedHashSet<>();
-            recipes.createRecipeCatalystLookup(category.getRecipeType()).getItemStack().forEach(stack -> {
-                if (stack != null && !stack.isEmpty()) {
-                    items.add(stack.getItem());
-                }
-            });
-            byType.put(type, items);
-            ModRecipeIndex.addCatalystStations(type, items);
-        }
+            for (IRecipeCategory<?> category : categories) {
+                items.addAll(catalysts.computeIfAbsent(category.getRecipeType(), type ->
+                        recipes.createRecipeCatalystLookup(type).getItemStack()
+                                .filter(stack -> stack != null && !stack.isEmpty())
+                                .map(ItemStack::getItem)
+                                .toList()));
+            }
+            byRecipe.put(id, items);
+        });
+        ModRecipeIndex.setRecipeStations(byRecipe);
         ModRecipeIndex.markStationsReady();
         recheckHost();
     }

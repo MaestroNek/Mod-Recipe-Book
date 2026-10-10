@@ -40,7 +40,7 @@ public final class ModRecipeIndex {
     private static Map<ResourceLocation, List<FluidProducer>> fluidProducers = Map.of();
     private static Map<ResourceLocation, Set<Item>> fluidContainers = Map.of();
     private static Map<RecipeType<?>, List<Set<Item>>> stationsByType = Map.of();
-    private static Map<RecipeType<?>, List<Set<Item>>> catalystStations = Map.of();
+    private static Map<ResourceLocation, List<Set<Item>>> catalystStations = Map.of();
     private static boolean stationsReady = true;
     private static int stationsGeneration;
 
@@ -241,6 +241,10 @@ public final class ModRecipeIndex {
     }
 
     public static boolean stationKnown(RecipeHolder<?> holder, Set<Item> known) {
+        List<Set<Item>> alts = catalystStations.get(holder.id());
+        if (alts != null && IngredientExtractor.sequencedSteps(holder.value()).isEmpty()) {
+            return stationless(holder.value()) || anyAltKnown(alts, known);
+        }
         return stationKnown(holder.value(), known);
     }
 
@@ -370,21 +374,22 @@ public final class ModRecipeIndex {
         addTypeStations(recipe, out);
     }
 
-    public static void addCatalystStations(RecipeType<?> type, Collection<Item> items) {
-        if (vanillaStations(type) != null) {
-            return;
-        }
-        List<Set<Item>> alts = new ArrayList<>();
-        for (Item item : items) {
-            if (item != null && item != Items.AIR && item != Items.CRAFTING_TABLE) {
-                alts.add(Set.of(item));
+    public static void setRecipeStations(Map<ResourceLocation, ? extends Collection<Item>> byRecipe) {
+        Map<ResourceLocation, List<Set<Item>>> next = new HashMap<>();
+        byRecipe.forEach((id, items) -> {
+            if (byId.get(id) == null || hasFixedStations(byId.get(id).value().getType())) {
+                return;
             }
-        }
-        if (alts.isEmpty()) {
-            return;
-        }
-        Map<RecipeType<?>, List<Set<Item>>> next = new HashMap<>(catalystStations);
-        next.put(type, List.copyOf(alts));
+            List<Set<Item>> alts = new ArrayList<>();
+            for (Item item : items) {
+                if (item != null && item != Items.AIR && item != Items.CRAFTING_TABLE) {
+                    alts.add(Set.of(item));
+                }
+            }
+            if (!alts.isEmpty()) {
+                next.put(id, List.copyOf(alts));
+            }
+        });
         catalystStations = Map.copyOf(next);
         applyCatalystStations();
         stationsGeneration++;
@@ -394,13 +399,10 @@ public final class ModRecipeIndex {
         if (catalystStations.isEmpty()) {
             return;
         }
-        Map<RecipeType<?>, List<Set<Item>>> stations = new HashMap<>(stationsByType);
-        stations.putAll(catalystStations);
-        stationsByType = Map.copyOf(stations);
         Map<Item, List<RecipeHolder<?>>> ingredients = new HashMap<>();
         byIngredient.forEach((item, list) -> ingredients.put(item, new ArrayList<>(list)));
         for (RecipeHolder<?> holder : byId.values()) {
-            List<Set<Item>> alts = catalystStations.get(holder.value().getType());
+            List<Set<Item>> alts = catalystStations.get(holder.id());
             if (alts == null || stationless(holder.value())) {
                 continue;
             }
@@ -436,6 +438,11 @@ public final class ModRecipeIndex {
     public static Set<Item> stationItems() {
         Set<Item> items = new HashSet<>();
         for (List<Set<Item>> alts : stationsByType.values()) {
+            for (Set<Item> alt : alts) {
+                items.addAll(alt);
+            }
+        }
+        for (List<Set<Item>> alts : catalystStations.values()) {
             for (Set<Item> alt : alts) {
                 items.addAll(alt);
             }
