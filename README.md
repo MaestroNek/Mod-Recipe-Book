@@ -1,6 +1,6 @@
 # Mod Recipe Book
 
-A progression-based recipe book with items from mods. Discover items, unlock recipes, and learn mods as you play. Every recipe opens in a detailed layout that shows exactly how it is made, including recipes made in machines from mods.
+A progression-based recipe book with items from mods. Discover items, unlock recipes, and learn mods as you play. Every recipe opens in a detailed layout that shows exactly how it is made, including recipes that go beyond crafting and smelting.
 
 Recipe layouts come from [JEI](https://github.com/mezz/JustEnoughItems).
 
@@ -9,7 +9,7 @@ Recipe layouts come from [JEI](https://github.com/mezz/JustEnoughItems).
 ### Learn mods by playing
 
 - **Recipes unlock as you explore.** Pick up the ingredients and the recipe appears in the book. Finding an item also shows you how to craft it.
-- **Find the station first.** A recipe unlocks once you also have what it is made on: a crafting table, a furnace, or a machine from a mod.
+- **Find the station first.** A recipe unlocks once you also have what it is made on: a crafting table, a furnace, or a crafting station added by a mod.
 - **Your rules.** Unlock recipes after one ingredient or after all of them, with or without the crafting method.
 
 ### Categories your way
