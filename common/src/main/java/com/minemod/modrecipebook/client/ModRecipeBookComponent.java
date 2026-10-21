@@ -37,8 +37,21 @@ import net.minecraft.world.inventory.BrewingStandMenu;
 import net.minecraft.world.inventory.RecipeBookMenu;
 import net.minecraft.world.inventory.RecipeBookType;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.ArmorItem;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.PotionItem;
+import net.minecraft.world.item.ProjectileWeaponItem;
+import net.minecraft.world.item.ShieldItem;
+import net.minecraft.world.item.SwordItem;
+import net.minecraft.world.item.TridentItem;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
@@ -51,10 +64,12 @@ import org.lwjgl.glfw.GLFW;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
@@ -83,10 +98,6 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/button"),
             ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/button_highlighted")
     );
-    public static final WidgetSprites ROTATE_SPRITES = new WidgetSprites(
-            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/rotate"),
-            ResourceLocation.fromNamespaceAndPath(ModRecipeBook.MODID, "recipe_book/rotate_highlighted")
-    );
     public static final int IMAGE_WIDTH = 147;
     public static final int IMAGE_HEIGHT = 166;
     public static final int DETAIL_IMAGE_WIDTH = 177;
@@ -99,6 +110,11 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     private static final int ARROW_W = 17;
     private static final int ARROW_H = 12;
     private static final int TAB_ARROW_GAP = 3;
+    private static final Map<String, String> AUTO_GROUP = Map.of(
+            "building_blocks", "blocks", "colored_blocks", "blocks", "natural_blocks", "blocks",
+            "functional_blocks", "functional", "redstone_blocks", "redstone",
+            "tools_and_utilities", "gear", "combat", "gear",
+            "food_and_drinks", "food", "ingredients", "ingredients");
     private static final int BOOKMARK_W = 12;
     private static final int BOOKMARK_H = 24;
     private static final int ITEM_BOOKMARK_W = 11;
@@ -112,6 +128,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     private final GhostRecipe ghostRecipe = new GhostRecipe();
     private final ModRecipePage page = new ModRecipePage();
     private final List<ModRecipeTabButton> tabs = new ArrayList<>();
+    private final Map<String, Set<Item>> creativeItems = new HashMap<>();
     private final StackedContents stackedContents = new StackedContents();
 
     private Minecraft minecraft;
@@ -283,9 +300,14 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     }
     private void rebuildTabs() {
         tabs.clear();
+        creativeItems.clear();
         tabs.add(new ModRecipeTabButton(null, new ItemStack(Items.COMPASS), Component.translatable("gui.modrecipebook.tab.all")));
-        for (RecipeCategoryConfig.Entry category : RecipeCategoryConfig.all()) {
-            tabs.add(new ModRecipeTabButton(category.id, category.iconStack(), category.title()));
+        if (RecipeCategoryConfig.autoCategories()) {
+            addCreativeTabs();
+        } else {
+            for (RecipeCategoryConfig.Entry category : RecipeCategoryConfig.all()) {
+                tabs.add(new ModRecipeTabButton(category.id, category.iconStack(), category.title()));
+            }
         }
         if (selectedCategory != null && tabs.stream().noneMatch(t -> selectedCategory.equals(t.categoryId()))) {
             selectedCategory = null;
@@ -295,6 +317,74 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
             tab.setSelected((selectedCategory == null && tab.categoryId() == null)
                     || (selectedCategory != null && selectedCategory.equals(tab.categoryId())));
         }
+    }
+
+    private void addCreativeTabs() {
+        if (minecraft.player == null || minecraft.level == null) {
+            return;
+        }
+        CreativeModeTabs.tryRebuildTabContents(minecraft.player.connection.enabledFeatures(),
+                minecraft.options.operatorItemsTab().get() && minecraft.player.canUseGameMasterBlocks(),
+                minecraft.level.registryAccess());
+        Map<Item, String> groupOf = new HashMap<>();
+        Map<Item, Integer> rank = new HashMap<>();
+        for (CreativeModeTab tab : CreativeModeTabs.allTabs()) {
+            if (tab.getType() != CreativeModeTab.Type.CATEGORY) {
+                continue;
+            }
+            ResourceLocation key = BuiltInRegistries.CREATIVE_MODE_TAB.getKey(tab);
+            String group = key != null && "minecraft".equals(key.getNamespace()) ? AUTO_GROUP.get(key.getPath()) : null;
+            for (ItemStack stack : tab.getDisplayItems()) {
+                rank.putIfAbsent(stack.getItem(), rank.size());
+                if (group != null) {
+                    groupOf.putIfAbsent(stack.getItem(), group);
+                }
+            }
+        }
+        Map<String, List<Item>> byGroup = new HashMap<>();
+        Set<Item> seen = new java.util.HashSet<>();
+        for (ItemStack stack : ModRecipeIndex.allCraftableStacks()) {
+            if (seen.add(stack.getItem())) {
+                String group = groupOf.computeIfAbsent(stack.getItem(), item -> classify(stack));
+                byGroup.computeIfAbsent(group, k -> new ArrayList<>()).add(stack.getItem());
+            }
+        }
+        java.util.Comparator<Item> order = java.util.Comparator
+                .<Item>comparingInt(item -> rank.getOrDefault(item, Integer.MAX_VALUE))
+                .thenComparing(item -> BuiltInRegistries.ITEM.getKey(item));
+        for (String group : RecipeCategoryConfig.autoOrder()) {
+            List<Item> list = byGroup.get(group);
+            if (list == null) {
+                continue;
+            }
+            list.sort(order);
+            Set<Item> items = new LinkedHashSet<>(list);
+            String id = "auto:" + group;
+            creativeItems.put(id, items);
+            ItemStack[] icons = RecipeCategoryConfig.autoIcons(group);
+            tabs.add(new ModRecipeTabButton(id, icons[0], icons.length > 1 ? icons[1] : ItemStack.EMPTY,
+                    RecipeCategoryConfig.autoTitle(group)));
+        }
+    }
+
+    // ponytail: guesses a group from item properties; custom categories are the precise option.
+    private static String classify(ItemStack stack) {
+        Item item = stack.getItem();
+        if (stack.has(DataComponents.FOOD) || stack.has(DataComponents.POTION_CONTENTS) || item instanceof PotionItem) {
+            return "food";
+        }
+        if (item instanceof ArmorItem || item instanceof SwordItem || item instanceof ProjectileWeaponItem
+                || item instanceof ShieldItem || item instanceof TridentItem) {
+            return "gear";
+        }
+        if (item instanceof BlockItem blockItem) {
+            Block block = blockItem.getBlock();
+            if (block instanceof EntityBlock) {
+                return "functional";
+            }
+            return block.defaultBlockState().isSignalSource() ? "redstone" : "blocks";
+        }
+        return stack.isDamageableItem() || stack.getMaxStackSize() < 64 ? "gear" : "ingredients";
     }
 
     private void positionTabs() {
@@ -380,13 +470,6 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         };
     }
 
-    public ImageButton createRotateButton(int x, int y, net.minecraft.client.gui.components.Button.OnPress onPress) {
-        ImageButton button = new ImageButton(x, y, 11, 11, ROTATE_SPRITES, onPress,
-                Component.translatable("gui.modrecipebook.rotate_books"));
-        button.setTooltip(Tooltip.create(Component.translatable("gui.modrecipebook.rotate_books")));
-        return button;
-    }
-
     public void toggleVisibility() {
         setVisible(!visible);
     }
@@ -426,10 +509,6 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
 
     public Rect2i overlayExclusion() {
         return new Rect2i(bookX, bookY, panelWidth() + TAB_OVERHANG, Math.max(IMAGE_HEIGHT, panelHeight()));
-    }
-
-    public void placeRotateButton(ImageButton rotate) {
-        rotate.setPosition(bookX, bookY + Math.max(IMAGE_HEIGHT, panelHeight()) + 2);
     }
 
     public void tick() {
@@ -563,8 +642,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         }
         if (overBookmark(mouseX, mouseY)) {
             graphics.renderTooltip(minecraft.font, Component.translatable("gui.modrecipebook.bookmarks"), mouseX, mouseY);
-        }
-    }
+        }    }
 
     public void renderGhostRecipe(GuiGraphics graphics, int leftPos, int topPos, float partialTick) {
         if (visible) {
@@ -608,8 +686,7 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         if (button == 0 && overBookmark(mouseX, mouseY)) {
             toggleBookmarkMode();
             return true;
-        }
-        if (button == 0 && overItemBookmark(mouseX, mouseY)) {
+        }        if (button == 0 && overItemBookmark(mouseX, mouseY)) {
             NetworkManager.sendToServer(new BookmarkPayload(itemKey(detailGroup.result())));
             playClick();
             return true;
@@ -1075,6 +1152,11 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         if (selectedCategory == null) {
             source = ModRecipeIndex.all();
             source.addAll(ModRecipeIndex.recipesByItemMod("minecraft"));
+        } else if (creativeItems.containsKey(selectedCategory)) {
+            source = new ArrayList<>();
+            for (Item item : creativeItems.get(selectedCategory)) {
+                source.addAll(ModRecipeIndex.byResult(item));
+            }
         } else {
             RecipeCategoryConfig.Entry category = RecipeCategoryConfig.find(selectedCategory);
             source = category == null ? List.of() : category.recipes();

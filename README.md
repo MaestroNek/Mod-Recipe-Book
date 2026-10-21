@@ -1,22 +1,34 @@
 # Mod Recipe Book
 
-A progression-based recipe book with items from mods. Discover items, unlock recipes, and learn mods as you play.
-
-**Designed for modpacks**: create custom categories from any combination of mods, optionally include Minecraft, hide the vanilla recipe book, and choose whether recipes unlock after discovering one ingredient or all ingredients.
+A progression-based recipe book with items from mods. Discover items, unlock recipes, and learn mods as you play. Every recipe opens in a detailed layout that shows exactly how it is made, including recipes made in machines from mods.
 
 Recipe layouts come from [JEI](https://github.com/mezz/JustEnoughItems).
 
 ## Features
 
-- Own recipe book button on inventory, crafting table, furnaces, and the brewing stand
-- **Recipes unlock when you find items.** By default a recipe unlocks only after you have found every ingredient. Finding an item also unlocks recipes that craft that item.
-- **Recipes unlock when you know the crafting method.** By default a recipe unlocks only after you found a crafting method (crafting table, furnace, etc). 
-- You can customize how new recipes unlock
-- All Recipes tab plus **custom categories** - choose which mods appear in each category
-- **Bookmarks** - add items to bookmarks for quick access.
-- **Potion recipes** supported
-- **Fluids recipes** supported (not shown in book, but available in recipe layout)
-- Left click a recipe to place it in the grid, left click + shift to place maximum, right click to open the item recipes layout 
+### Learn mods by playing
+
+- **Recipes unlock as you explore.** Pick up the ingredients and the recipe appears in the book. Finding an item also shows you how to craft it.
+- **Find the station first.** A recipe unlocks once you also have what it is made on: a crafting table, a furnace, or a machine from a mod.
+- **Your rules.** Unlock recipes after one ingredient or after all of them, with or without the crafting method.
+
+### Categories your way
+
+- **Auto categories.** Every recipe from every mod is sorted into six clear tabs: Blocks, Functional Blocks, Equipment & Utilities, Food & Drinks, Ingredients, and Redstone. No setup needed, and you can reorder the tabs.
+- **Custom categories.** Want more control? Build your own tabs from any mix of mods and switch to them in the settings.
+
+### A recipe book that does much more
+
+- **Replaces the vanilla book.** Works in the inventory, crafting table, and furnaces, and adds a recipe book to the brewing stand.
+- **Any recipe type.** Shows recipes from any mod, not just crafting and smelting, each in its own detailed layout.
+- **Potions and fluids.** Potion recipes are included. Fluid recipes appear in recipe layouts.
+- **Bookmarks.** Keep the items you need close at hand.
+
+### Quick to use
+
+- **Left click** a recipe to place it in the grid, **Shift + left click** to place as many as possible.
+- **Right click** an item to see a detailed layout with all of its recipes.
+- **Middle click** an item to add it to bookmarks.
 
 ## Download
 

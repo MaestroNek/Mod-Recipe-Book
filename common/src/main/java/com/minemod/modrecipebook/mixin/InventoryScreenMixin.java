@@ -2,7 +2,6 @@ package com.minemod.modrecipebook.mixin;
 
 import com.minemod.modrecipebook.client.ModRecipeBookAccess;
 import com.minemod.modrecipebook.client.ModRecipeBookComponent;
-import com.minemod.modrecipebook.client.RecipeCategoryConfig;
 import com.minemod.modrecipebook.client.VanillaRecipeBookGuard;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ImageButton;
@@ -54,7 +53,7 @@ public abstract class InventoryScreenMixin extends EffectRenderingInventoryScree
             this.leftPos = this.modrecipebook$book.updateScreenPosition(this.width, this.imageWidth);
             this.modrecipebook$book.syncLayout();
         }
-        this.modrecipebook$layout = VanillaRecipeBookGuard.stackRight(104, this.height / 2 - 22 - this.topPos);
+        this.modrecipebook$layout = new VanillaRecipeBookGuard.Layout(104, this.height / 2 - 22 - this.topPos);
         this.modrecipebook$button = this.addRenderableWidget(this.modrecipebook$book.createToggleButton(
                 this.leftPos + 126, this.height / 2 - 22, button -> this.modrecipebook$toggle()));
         this.modrecipebook$repositionButtons();
@@ -75,7 +74,7 @@ public abstract class InventoryScreenMixin extends EffectRenderingInventoryScree
     private void modrecipebook$repositionButtons() {
         VanillaRecipeBookGuard.apply(this.recipeBookComponent, this.modrecipebook$button, this.children(),
                 this.modrecipebook$layout, this.leftPos, this.topPos);
-        if (RecipeCategoryConfig.hideVanillaBook() && !this.modrecipebook$book.isVisible()) {
+        if (!this.modrecipebook$book.isVisible()) {
             this.leftPos = this.recipeBookComponent.updateScreenPosition(this.width, this.imageWidth);
         }
     }

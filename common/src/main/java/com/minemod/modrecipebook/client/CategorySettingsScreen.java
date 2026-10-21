@@ -10,6 +10,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Checkbox;
+import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
@@ -34,9 +35,8 @@ public class CategorySettingsScreen extends Screen {
     private static final int SIDE_PAD = (ARROW_SLOT - SCROLLBAR_W) / 2;
     private static final int PAD = 6;
     private static final int LIST_BG = 0x80000000;
-    private static final int DIVIDER_Y = 116;
-    private static final int ADD_BTN_Y = 126;
-    private static final int HEADER_TEXT_Y = 132;
+    private static final int DIVIDER_Y = 96;
+    private static final int ADD_BTN_Y = 106;
     private static final ResourceLocation SCROLLER =
             ResourceLocation.withDefaultNamespace("widget/scroller");
     private static final ResourceLocation SCROLLER_BG =
@@ -118,7 +118,7 @@ public class CategorySettingsScreen extends Screen {
     @Override
     protected void init() {
         listLeft = (width - panelWidth()) / 2 + ARROW_SLOT + SIDE_PAD;
-        listTop = 150 + PAD;
+        listTop = 130 + PAD;
         int limit = height - 32 - PAD;
         visibleRows = Math.max(1, (limit - listTop - ROW_BTN) / ROW + 1);
         listBottom = listTop + (visibleRows - 1) * ROW + ROW_BTN;
@@ -129,25 +129,32 @@ public class CategorySettingsScreen extends Screen {
                 .tooltip(Tooltip.create(Component.translatable("gui.modrecipebook.config.hide_jei.tooltip")))
                 .onValueChange((box, value) -> RecipeCategoryConfig.setHideJei(value))
                 .build());
-        addRenderableWidget(Checkbox.builder(Component.translatable("gui.modrecipebook.config.hide_vanilla"), font)
-                .pos(panelLeft(), 48)
-                .selected(RecipeCategoryConfig.hideVanillaBook())
-                .tooltip(Tooltip.create(Component.translatable("gui.modrecipebook.config.hide_vanilla.tooltip")))
-                .onValueChange((box, value) -> RecipeCategoryConfig.setHideVanillaBook(value))
-                .build());
         addRenderableWidget(unlockCheckbox("gui.modrecipebook.config.require_all",
-                "gui.modrecipebook.config.require_all.tooltip", 68,
+                "gui.modrecipebook.config.require_all.tooltip", 48,
                 remoteRules ? remoteAll : RecipeCategoryConfig.requireAllIngredients(), value -> {
                     RecipeCategoryConfig.setRequireAllIngredients(value);
                     rethinkRecipes();
                 }));
         addRenderableWidget(unlockCheckbox("gui.modrecipebook.config.require_method",
-                "gui.modrecipebook.config.require_method.tooltip", 88,
+                "gui.modrecipebook.config.require_method.tooltip", 68,
                 remoteRules ? remoteMethod : RecipeCategoryConfig.requireCraftingMethod(), value -> {
                     RecipeCategoryConfig.setRequireCraftingMethod(value);
                     rethinkRecipes();
                 }));
+        boolean auto = RecipeCategoryConfig.autoCategories();
+        addRenderableWidget(CycleButton.booleanBuilder(
+                        Component.translatable("gui.modrecipebook.config.categories.auto"),
+                        Component.translatable("gui.modrecipebook.config.categories.custom"))
+                .withInitialValue(auto)
+                .withTooltip(value -> Tooltip.create(Component.translatable("gui.modrecipebook.config.categories.tooltip")))
+                .create(panelLeft(), ADD_BTN_Y, 150, 20, Component.translatable("gui.modrecipebook.config.categories"),
+                        (button, value) -> {
+                            RecipeCategoryConfig.setAutoCategories(value);
+                            listScroll = 0;
+                            rebuildWidgets();
+                        }));
         List<RecipeCategoryConfig.Entry> categories = RecipeCategoryConfig.all();
+        List<String> autoOrder = RecipeCategoryConfig.autoOrder();
         int shown = Math.min(visibleRows, Math.max(0, rowCount() - listScroll));
         for (int i = 0; i < shown; i++) {
             int index = listScroll + i;
@@ -155,6 +162,18 @@ public class CategorySettingsScreen extends Screen {
                 continue;
             }
             int catIndex = index - 1;
+            if (auto) {
+                String group = autoOrder.get(catIndex);
+                addRenderableWidget(new SortArrows(listLeft - ARROW_SLOT, listTop + i * ROW + (ROW_BTN - ARROW_H) / 2,
+                        catIndex > 0, catIndex < autoOrder.size() - 1, () -> {
+                    RecipeCategoryConfig.moveAuto(group, -1);
+                    rebuildWidgets();
+                }, () -> {
+                    RecipeCategoryConfig.moveAuto(group, 1);
+                    rebuildWidgets();
+                }));
+                continue;
+            }
             String id = categories.get(catIndex).id;
             int row = listTop + i * ROW;
             boolean canUp = catIndex > 0;
@@ -184,10 +203,12 @@ public class CategorySettingsScreen extends Screen {
                 minecraft.setScreen(new DebugSettingsScreen(this)))
                 .bounds(width - 8 - 60, 6, 60, 20)
                 .build());
-        addRenderableWidget(Button.builder(Component.translatable("gui.modrecipebook.config.add"), b ->
-                minecraft.setScreen(new CategoryEditScreen(this, null)))
-                .bounds(panelRight() - 150, ADD_BTN_Y, 150, 20)
-                .build());
+        if (!auto) {
+            addRenderableWidget(Button.builder(Component.translatable("gui.modrecipebook.config.add"), b ->
+                    minecraft.setScreen(new CategoryEditScreen(this, null)))
+                    .bounds(panelRight() - 150, ADD_BTN_Y, 150, 20)
+                    .build());
+        }
         addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose())
                 .bounds(width / 2 - 100, height - 28, 200, 20)
                 .build());
@@ -201,8 +222,6 @@ public class CategorySettingsScreen extends Screen {
         graphics.drawCenteredString(font, title, width / 2, 12, 0xFFFFFF);
         graphics.fill(panelLeft(), DIVIDER_Y, panelRight(), DIVIDER_Y + 1, 0xFF000000);
         graphics.fill(panelLeft(), DIVIDER_Y + 1, panelRight(), DIVIDER_Y + 2, 0x55FFFFFF);
-        graphics.drawString(font, Component.translatable("gui.modrecipebook.config.categories"),
-                panelLeft(), HEADER_TEXT_Y, 0xA0A0A0, false);
         List<RecipeCategoryConfig.Entry> categories = RecipeCategoryConfig.all();
         int shown = Math.min(visibleRows, Math.max(0, rowCount() - listScroll));
         for (int i = 0; i < shown; i++) {
@@ -214,6 +233,12 @@ public class CategorySettingsScreen extends Screen {
                         listLeft + TEXT_X, y + 4, 0xFFFFFF, false);
                 graphics.drawString(font, Component.translatable("gui.modrecipebook.config.locked"),
                         listLeft + 200, y + 4, 0x808080, false);
+                continue;
+            }
+            if (RecipeCategoryConfig.autoCategories()) {
+                String group = RecipeCategoryConfig.autoOrder().get(index - 1);
+                graphics.renderItem(RecipeCategoryConfig.autoIcons(group)[0], listLeft + ICON_X, y);
+                graphics.drawString(font, RecipeCategoryConfig.autoTitle(group), listLeft + TEXT_X, y + 4, 0xFFFFFF, false);
                 continue;
             }
             RecipeCategoryConfig.Entry entry = categories.get(index - 1);
@@ -274,7 +299,8 @@ public class CategorySettingsScreen extends Screen {
     }
 
     private int rowCount() {
-        return 1 + RecipeCategoryConfig.all().size();
+        return 1 + (RecipeCategoryConfig.autoCategories()
+                ? RecipeCategoryConfig.autoOrder().size() : RecipeCategoryConfig.all().size());
     }
 
     private int maxScroll() {

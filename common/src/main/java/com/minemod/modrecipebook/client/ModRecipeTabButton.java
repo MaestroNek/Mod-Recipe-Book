@@ -23,12 +23,18 @@ public class ModRecipeTabButton extends AbstractWidget {
 
     private final String categoryId;
     private final ItemStack icon;
+    private final ItemStack secondIcon;
     private boolean selected;
 
     public ModRecipeTabButton(String categoryId, ItemStack icon, Component title) {
+        this(categoryId, icon, ItemStack.EMPTY, title);
+    }
+
+    public ModRecipeTabButton(String categoryId, ItemStack icon, ItemStack secondIcon, Component title) {
         super(0, 0, 35, 27, title);
         this.categoryId = categoryId;
         this.icon = icon.isEmpty() ? new ItemStack(Items.KNOWLEDGE_BOOK) : icon;
+        this.secondIcon = secondIcon;
     }
 
     public String categoryId() {
@@ -53,7 +59,12 @@ public class ModRecipeTabButton extends AbstractWidget {
                 ? (selected ? TAB_SELECTED_BOOKMARK : TAB_BOOKMARK)
                 : (selected ? TAB_SELECTED : TAB);
         graphics.blitSprite(sprite, getX(), getY(), width, height);
-        graphics.renderFakeItem(icon, getX() + 9, getY() + 5);
+        if (secondIcon.isEmpty()) {
+            graphics.renderFakeItem(icon, getX() + 10, getY() + 5);
+        } else {
+            graphics.renderFakeItem(icon, getX() + 6, getY() + 5);
+            graphics.renderFakeItem(secondIcon, getX() + 13, getY() + 5);
+        }
     }
 
     @Override

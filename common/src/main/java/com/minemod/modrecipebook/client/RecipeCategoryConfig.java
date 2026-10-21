@@ -17,6 +17,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.alchemy.Potions;
 import com.minemod.modrecipebook.platform.Platform;
 import net.minecraft.world.item.crafting.RecipeHolder;
 
@@ -42,12 +44,13 @@ public final class RecipeCategoryConfig {
     private static final List<Entry> CATEGORIES = new ArrayList<>();
     private static final Set<Item> BROKEN_ICONS = Collections.newSetFromMap(new IdentityHashMap<>());
     private static boolean hideJei = true;
-    private static boolean hideVanillaBook = true;
+    private static boolean autoCategories = true;
+    private static final List<String> AUTO_DEFAULT = List.of("blocks", "functional", "gear", "food", "ingredients", "redstone");
+    private static final List<String> AUTO_ORDER = new ArrayList<>(AUTO_DEFAULT);
     private static boolean requireAllIngredients = true;
     private static boolean requireCraftingMethod = true;
     private static int unlockRules;
     private static final Map<String, Integer> APPLIED_RULES = new HashMap<>();
-    private static final Map<String, Integer> BOOK_BUTTON_LAYOUT = new HashMap<>();
     private static final int DEFAULTS = 1;
 
     private RecipeCategoryConfig() {}
@@ -74,27 +77,42 @@ public final class RecipeCategoryConfig {
         save();
     }
 
-    public static boolean hideVanillaBook() {
-        return hideVanillaBook;
+    public static boolean autoCategories() {
+        return autoCategories;
     }
 
-    public static void setHideVanillaBook(boolean value) {
-        hideVanillaBook = value;
+    public static void setAutoCategories(boolean value) {
+        autoCategories = value;
         save();
     }
 
-    public static int bookButtonLayout(String screenId) {
-        return Math.floorMod(BOOK_BUTTON_LAYOUT.getOrDefault(screenId, 0), VanillaRecipeBookGuard.LAYOUT_COUNT);
+    public static List<String> autoOrder() {
+        return AUTO_ORDER;
     }
 
-    public static void setBookButtonLayout(String screenId, int mode) {
-        mode = Math.floorMod(mode, VanillaRecipeBookGuard.LAYOUT_COUNT);
-        if (mode == 0) {
-            BOOK_BUTTON_LAYOUT.remove(screenId);
-        } else {
-            BOOK_BUTTON_LAYOUT.put(screenId, mode);
+    public static void moveAuto(String group, int delta) {
+        int from = AUTO_ORDER.indexOf(group);
+        int to = from + delta;
+        if (from < 0 || to < 0 || to >= AUTO_ORDER.size()) {
+            return;
         }
+        Collections.swap(AUTO_ORDER, from, to);
         save();
+    }
+
+    public static Component autoTitle(String group) {
+        return Component.translatable("gui.modrecipebook.auto." + group);
+    }
+
+    public static ItemStack[] autoIcons(String group) {
+        return switch (group) {
+            case "blocks" -> new ItemStack[]{new ItemStack(Items.GRASS_BLOCK)};
+            case "functional" -> new ItemStack[]{new ItemStack(Items.CRAFTING_TABLE)};
+            case "gear" -> new ItemStack[]{new ItemStack(Items.BUCKET), new ItemStack(Items.GOLDEN_SWORD)};
+            case "food" -> new ItemStack[]{PotionContents.createItemStack(Items.POTION, Potions.WATER), new ItemStack(Items.APPLE)};
+            case "ingredients" -> new ItemStack[]{new ItemStack(Items.IRON_INGOT)};
+            default -> new ItemStack[]{new ItemStack(Items.REDSTONE)};
+        };
     }
 
     public static boolean requireAllIngredients() {
@@ -137,9 +155,10 @@ public final class RecipeCategoryConfig {
 
     public static void load() {
         CATEGORIES.clear();
-        BOOK_BUTTON_LAYOUT.clear();
         hideJei = true;
-        hideVanillaBook = true;
+        autoCategories = true;
+        AUTO_ORDER.clear();
+        AUTO_ORDER.addAll(AUTO_DEFAULT);
         requireAllIngredients = true;
         requireCraftingMethod = true;
         unlockRules = 0;
@@ -161,10 +180,18 @@ public final class RecipeCategoryConfig {
                 if (data.hideJei != null) {
                     hideJei = data.hideJei;
                 }
-                if (migrate) {
-                    hideVanillaBook = true;
-                } else if (data.hideVanillaBook != null) {
-                    hideVanillaBook = data.hideVanillaBook;
+                if (data.autoOrder != null) {
+                    AUTO_ORDER.clear();
+                    for (String group : data.autoOrder) {
+                        if (AUTO_DEFAULT.contains(group) && !AUTO_ORDER.contains(group)) {
+                            AUTO_ORDER.add(group);
+                        }
+                    }
+                    for (String group : AUTO_DEFAULT) {
+                        if (!AUTO_ORDER.contains(group)) {
+                            AUTO_ORDER.add(group);
+                        }
+                    }
                 }
                 if (data.requireAllIngredients != null) {
                     requireAllIngredients = data.requireAllIngredients;
@@ -177,20 +204,6 @@ public final class RecipeCategoryConfig {
                 }
                 if (data.appliedUnlockRules != null) {
                     APPLIED_RULES.putAll(data.appliedUnlockRules);
-                }
-                if (data.bookButtonLayout != null) {
-                    for (Map.Entry<String, Integer> entry : data.bookButtonLayout.entrySet()) {
-                        if (entry.getKey() != null && entry.getValue() != null) {
-                            BOOK_BUTTON_LAYOUT.put(entry.getKey(),
-                                    Math.floorMod(entry.getValue(), VanillaRecipeBookGuard.LAYOUT_COUNT));
-                        }
-                    }
-                } else if (data.bookButtonsHorizontal != null) {
-                    for (Map.Entry<String, Boolean> entry : data.bookButtonsHorizontal.entrySet()) {
-                        if (entry.getKey() != null && Boolean.TRUE.equals(entry.getValue())) {
-                            BOOK_BUTTON_LAYOUT.put(entry.getKey(), 3);
-                        }
-                    }
                 }
                 if (data.categories != null) {
                     for (Entry entry : data.categories) {
@@ -214,6 +227,13 @@ public final class RecipeCategoryConfig {
                 }
                 if (migrate) {
                     ensureMinecraftCategory();
+                }
+                if (data.autoCategories != null) {
+                    autoCategories = data.autoCategories;
+                } else {
+                    autoCategories = untouchedCategories();
+                }
+                if (migrate || data.autoCategories == null) {
                     save();
                 }
             }
@@ -231,12 +251,12 @@ public final class RecipeCategoryConfig {
             try (Writer writer = Files.newBufferedWriter(file())) {
                 FileData data = new FileData();
                 data.hideJei = hideJei;
-                data.hideVanillaBook = hideVanillaBook;
+                data.autoCategories = autoCategories;
+                data.autoOrder = AUTO_ORDER;
                 data.requireAllIngredients = requireAllIngredients;
                 data.requireCraftingMethod = requireCraftingMethod;
                 data.unlockRules = unlockRules;
                 data.appliedUnlockRules = APPLIED_RULES;
-                data.bookButtonLayout = BOOK_BUTTON_LAYOUT;
                 data.defaults = DEFAULTS;
                 data.categories = CATEGORIES;
                 GSON.toJson(data, writer);
@@ -325,6 +345,15 @@ public final class RecipeCategoryConfig {
         }
     }
 
+    private static boolean untouchedCategories() {
+        if (CATEGORIES.size() != 1) {
+            return false;
+        }
+        Entry only = CATEGORIES.get(0);
+        Entry def = defaultMinecraft();
+        return def.id.equals(only.id) && def.name.equals(only.name) && def.icon.equals(only.icon) && def.mods.equals(only.mods);
+    }
+
     private static void ensureMinecraftCategory() {
         if (find("minecraft") != null) {
             return;
@@ -343,13 +372,12 @@ public final class RecipeCategoryConfig {
 
     private static class FileData {
         Boolean hideJei;
-        Boolean hideVanillaBook;
+        Boolean autoCategories;
+        List<String> autoOrder;
         Boolean requireAllIngredients;
         Boolean requireCraftingMethod;
         Integer unlockRules;
         Map<String, Integer> appliedUnlockRules;
-        Map<String, Boolean> bookButtonsHorizontal;
-        Map<String, Integer> bookButtonLayout;
         Integer defaults;
         List<Entry> categories;
     }

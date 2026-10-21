@@ -72,9 +72,6 @@ public final class ClientUnlockedRecipes {
             if (minecraft.level == null) {
                 continue;
             }
-            if ("minecraft".equals(id.getNamespace()) && !RecipeCategoryConfig.hideVanillaBook()) {
-                continue;
-            }
             ModRecipeIndex.byId(id).ifPresent(holder -> {
                 if (IngredientExtractor.result(holder.value(), minecraft.level.registryAccess()).isEmpty()) {
                     return;

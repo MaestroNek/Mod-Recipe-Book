@@ -62,21 +62,15 @@ public final class ModRecipeBookScreens {
             relX = vanillaButton.getX() - GuiOrigin.x(screen);
             relY = vanillaButton.getY() - GuiOrigin.y(screen);
         }
-        host.layout = VanillaRecipeBookGuard.forMode(relX, relY, RecipeCategoryConfig.bookButtonLayout(screenId(screen)));
+        host.layout = new VanillaRecipeBookGuard.Layout(relX, relY);
         host.button = host.book.createToggleButton(
                 GuiOrigin.x(screen) + relX, GuiOrigin.y(screen) + relY, b -> toggle(screen, host));
-        if (brewing) {
-            host.rotate = null;
-        } else {
-            host.rotate = host.book.createRotateButton(
-                    GuiOrigin.x(screen) + relX, GuiOrigin.y(screen) + relY + 20, b -> toggleStack(screen, host));
-        }
         if (host.book.isVisible()) {
             setLeftPos(screen, host.book.updateScreenPosition(screen.width, GuiOrigin.width(screen)));
             host.book.syncLayout();
         }
         reposition(screen, host);
-        return host.rotate == null ? List.of(host.button) : List.of(host.button, host.rotate);
+        return List.of(host.button);
     }
 
     public static void tick(Screen screen) {
@@ -168,13 +162,6 @@ public final class ModRecipeBookScreens {
         return host != null && host.book.isMouseOver(mouseX, mouseY);
     }
 
-    private static void toggleStack(AbstractContainerScreen<?> screen, Host host) {
-        int next = Math.floorMod(host.layout.mode() + 1, VanillaRecipeBookGuard.LAYOUT_COUNT);
-        host.layout.setMode(next);
-        RecipeCategoryConfig.setBookButtonLayout(screenId(screen), next);
-        reposition(screen, host);
-    }
-
     private static void toggle(AbstractContainerScreen<?> screen, Host host) {
         RecipeBookComponent vanilla = vanillaBook(screen);
         if (!host.book.isVisible() && vanilla != null && vanilla.isVisible()) {
@@ -190,43 +177,17 @@ public final class ModRecipeBookScreens {
         RecipeBookComponent vanilla = vanillaBook(screen);
         VanillaRecipeBookGuard.apply(vanilla, host.button, screen.children(),
                 host.layout, GuiOrigin.x(screen), GuiOrigin.y(screen));
-        if (RecipeCategoryConfig.hideVanillaBook() && !host.book.isVisible() && vanilla != null) {
+        if (!host.book.isVisible() && vanilla != null) {
             setLeftPos(screen, vanilla.updateScreenPosition(screen.width, GuiOrigin.width(screen)));
         }
         if (host.button != null) {
             host.button.visible = true;
             host.button.active = true;
         }
-        placeRotate(screen, host, vanilla);
-    }
-
-    private static void placeRotate(AbstractContainerScreen<?> screen, Host host, RecipeBookComponent vanilla) {
-        if (host.rotate == null) {
-            return;
-        }
-        boolean show = !RecipeCategoryConfig.hideVanillaBook()
-                && (host.book.isVisible() || host.book.isVanillaVisible());
-        host.rotate.visible = show;
-        host.rotate.active = show;
-        if (!show) {
-            return;
-        }
-        if (host.book.isVisible()) {
-            host.book.placeRotateButton(host.rotate);
-            return;
-        }
-        int xOffset = screen.width < 379 ? 0 : 86;
-        int x = (screen.width - 147) / 2 - xOffset;
-        int y = (screen.height - 166) / 2;
-        host.rotate.setPosition(x, y + 166 + 2);
     }
 
     private static void setLeftPos(AbstractContainerScreen<?> screen, int leftPos) {
         ((AbstractContainerScreenAccessor) screen).setLeftPos(leftPos);
-    }
-
-    private static String screenId(Screen screen) {
-        return screen.getClass().getName();
     }
 
     private static RecipeBookComponent vanillaBook(Screen screen) {
@@ -240,7 +201,6 @@ public final class ModRecipeBookScreens {
     private static final class Host {
         ModRecipeBookComponent book;
         ImageButton button;
-        ImageButton rotate;
         VanillaRecipeBookGuard.Layout layout;
     }
 }
