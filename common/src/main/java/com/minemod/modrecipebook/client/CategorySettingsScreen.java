@@ -106,6 +106,7 @@ public class CategorySettingsScreen extends Screen {
     private int listBottom;
     private int visibleRows;
     private int listScroll;
+    private int worldButtonWidth;
     private boolean draggingBar;
     private int dragOffset;
 
@@ -199,9 +200,10 @@ public class CategorySettingsScreen extends Screen {
                     .bounds(listLeft + 252, row, 48, 20)
                     .build());
         }
-        addRenderableWidget(Button.builder(Component.translatable("gui.modrecipebook.config.debug"), b ->
-                minecraft.setScreen(new DebugSettingsScreen(this)))
-                .bounds(width - 8 - 60, 6, 60, 20)
+        Component worldLabel = Component.translatable("gui.modrecipebook.config.debug");
+        worldButtonWidth = font.width(worldLabel) + 12;
+        addRenderableWidget(Button.builder(worldLabel, b -> minecraft.setScreen(new DebugSettingsScreen(this)))
+                .bounds(width - 8 - worldButtonWidth, 6, worldButtonWidth, 20)
                 .build());
         if (!auto) {
             addRenderableWidget(Button.builder(Component.translatable("gui.modrecipebook.config.add"), b ->
@@ -219,7 +221,12 @@ public class CategorySettingsScreen extends Screen {
         renderBackground(graphics, mouseX, mouseY, partialTick);
         graphics.fill(panelLeft(), listTop - PAD, panelRight(), listBottom + PAD, LIST_BG);
         super.render(graphics, mouseX, mouseY, partialTick);
-        graphics.drawCenteredString(font, title, width / 2, 12, 0xFFFFFF);
+        int titleRoom = width - 16 - worldButtonWidth;
+        int titleCenter = width / 2;
+        if (titleCenter + font.width(title) / 2 > titleRoom) {
+            titleCenter = titleRoom / 2;
+        }
+        graphics.drawCenteredString(font, title, titleCenter, 12, 0xFFFFFF);
         graphics.fill(panelLeft(), DIVIDER_Y, panelRight(), DIVIDER_Y + 1, 0xFF000000);
         graphics.fill(panelLeft(), DIVIDER_Y + 1, panelRight(), DIVIDER_Y + 2, 0x55FFFFFF);
         List<RecipeCategoryConfig.Entry> categories = RecipeCategoryConfig.all();
