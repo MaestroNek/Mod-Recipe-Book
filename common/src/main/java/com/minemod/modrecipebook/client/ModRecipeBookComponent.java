@@ -1035,17 +1035,17 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     }
 
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (!visible) {
+        if (!visible || searchBox == null || keyCode == GLFW.GLFW_KEY_ESCAPE) {
             return false;
         }
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-            return false;
-        }
-        if (searchBox != null && searchBox.isFocused()) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-                searchBox.setFocused(false);
-                return true;
+        if (keyCode == GLFW.GLFW_KEY_F && Screen.hasControlDown() && !Screen.hasAltDown()) {
+            if (!searchListVisible() || otherEditBoxFocused()) {
+                return false;
             }
+            focusSearch();
+            return true;
+        }
+        if (searchBox.isFocused() && searchListVisible()) {
             searchBox.keyPressed(keyCode, scanCode, modifiers);
             applySearch();
             return true;
@@ -1054,16 +1054,29 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
     }
 
     public boolean charTyped(char codePoint, int modifiers) {
-        if (!visible || searchBox == null || jeiDetail != null || detail != null || emptyDetail != null) {
+        if (!visible || searchBox == null || !searchBox.isFocused() || !searchListVisible()) {
             return false;
         }
-        if (!searchBox.isFocused() && screen != null && screen.getFocused() instanceof EditBox other && other != searchBox) {
-            return false;
+        if (Screen.hasControlDown() && !Screen.hasAltDown()) {
+            return true;
         }
-        searchBox.setFocused(true);
         boolean typed = searchBox.charTyped(codePoint, modifiers);
         applySearch();
         return typed;
+    }
+
+    private boolean searchListVisible() {
+        return jeiDetail == null && detail == null && emptyDetail == null;
+    }
+
+    private boolean otherEditBoxFocused() {
+        return screen != null && screen.getFocused() instanceof EditBox other && other != searchBox;
+    }
+
+    private void focusSearch() {
+        searchBox.setFocused(true);
+        searchBox.moveCursorToEnd(false);
+        searchBox.setHighlightPos(0);
     }
 
     private void applySearch() {
