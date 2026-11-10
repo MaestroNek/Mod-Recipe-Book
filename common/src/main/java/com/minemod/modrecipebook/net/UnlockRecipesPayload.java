@@ -6,7 +6,6 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import dev.architectury.networking.NetworkManager;
 
 import java.util.List;
 
@@ -25,9 +24,5 @@ public record UnlockRecipesPayload(List<ResourceLocation> recipes, List<Resource
     @Override
     public Type<? extends CustomPacketPayload> type() {
         return TYPE;
-    }
-
-    public static void handle(UnlockRecipesPayload payload, NetworkManager.PacketContext context) {
-        context.queue(() -> com.minemod.modrecipebook.client.ClientUnlockedRecipes.apply(payload));
     }
 }

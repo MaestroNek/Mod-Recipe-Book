@@ -18,10 +18,4 @@ public final class ModNetworking {
         NetworkManager.registerReceiver(NetworkManager.c2s(), DebugUnlockPayload.TYPE, DebugUnlockPayload.STREAM_CODEC, DebugUnlockPayload::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), BookmarkPayload.TYPE, BookmarkPayload.STREAM_CODEC, BookmarkPayload::handle);
     }
-
-    public static void initClient() {
-        NetworkManager.registerReceiver(NetworkManager.s2c(), UnlockRecipesPayload.TYPE, UnlockRecipesPayload.STREAM_CODEC, UnlockRecipesPayload::handle);
-        NetworkManager.registerReceiver(NetworkManager.s2c(), BookmarkSyncPayload.TYPE, BookmarkSyncPayload.STREAM_CODEC, BookmarkSyncPayload::handle);
-        NetworkManager.registerReceiver(NetworkManager.s2c(), UnlockRulesPayload.TYPE, UnlockRulesPayload.STREAM_CODEC, UnlockRulesPayload::handle);
-    }
 }

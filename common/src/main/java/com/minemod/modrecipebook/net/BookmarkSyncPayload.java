@@ -6,7 +6,6 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import dev.architectury.networking.NetworkManager;
 
 import java.util.List;
 
@@ -22,9 +21,5 @@ public record BookmarkSyncPayload(List<String> keys) implements CustomPacketPayl
     @Override
     public Type<? extends CustomPacketPayload> type() {
         return TYPE;
-    }
-
-    public static void handle(BookmarkSyncPayload payload, NetworkManager.PacketContext context) {
-        context.queue(() -> com.minemod.modrecipebook.client.RecipeBookmarks.replace(payload.keys()));
     }
 }

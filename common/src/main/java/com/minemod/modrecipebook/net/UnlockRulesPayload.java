@@ -1,8 +1,6 @@
 package com.minemod.modrecipebook.net;
 
 import com.minemod.modrecipebook.ModRecipeBook;
-import com.minemod.modrecipebook.client.CategorySettingsScreen;
-import dev.architectury.networking.NetworkManager;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
@@ -22,9 +20,5 @@ public record UnlockRulesPayload(boolean requireAll, boolean requireMethod) impl
     @Override
     public Type<? extends CustomPacketPayload> type() {
         return TYPE;
-    }
-
-    public static void handle(UnlockRulesPayload payload, NetworkManager.PacketContext context) {
-        context.queue(() -> CategorySettingsScreen.applyServerRules(payload.requireAll(), payload.requireMethod()));
     }
 }

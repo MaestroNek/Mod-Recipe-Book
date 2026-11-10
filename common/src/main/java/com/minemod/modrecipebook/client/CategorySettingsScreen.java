@@ -1,6 +1,5 @@
 package com.minemod.modrecipebook.client;
 
-import com.minemod.modrecipebook.ModRecipeBook;
 import com.minemod.modrecipebook.mixin.CheckboxAccessor;
 import com.minemod.modrecipebook.net.DebugUnlockPayload;
 import dev.architectury.networking.NetworkManager;
@@ -96,7 +95,7 @@ public class CategorySettingsScreen extends Screen {
     private void rethinkRecipes() {
         if (minecraft != null && minecraft.player != null && minecraft.level != null && minecraft.getConnection() != null) {
             NetworkManager.sendToServer(new DebugUnlockPayload(DebugUnlockPayload.RETHINK));
-            RecipeCategoryConfig.markRulesApplied(ModRecipeBook.currentWorldKey());
+            RecipeCategoryConfig.markRulesApplied(ModRecipeBookClient.currentWorldKey());
         }
     }
 

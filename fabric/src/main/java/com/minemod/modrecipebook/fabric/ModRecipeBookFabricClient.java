@@ -1,6 +1,6 @@
 package com.minemod.modrecipebook.fabric;
 
-import com.minemod.modrecipebook.ModRecipeBook;
+import com.minemod.modrecipebook.client.ModRecipeBookClient;
 import com.minemod.modrecipebook.client.ClientGuiEvents;
 import com.minemod.modrecipebook.fabric.mixin.ScreenWidgetInvoker;
 import net.fabricmc.api.ClientModInitializer;
@@ -12,7 +12,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 public final class ModRecipeBookFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
-        ModRecipeBook.initClient();
+        ModRecipeBookClient.init();
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
             if (screen instanceof AbstractContainerScreen<?>) {
                 ClientGuiEvents.afterInit(screen, button -> ((ScreenWidgetInvoker) screen).modrecipebook$add(button));
