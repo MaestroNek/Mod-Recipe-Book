@@ -302,12 +302,14 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         tabs.clear();
         creativeItems.clear();
         tabs.add(new ModRecipeTabButton(null, new ItemStack(Items.COMPASS), Component.translatable("gui.modrecipebook.tab.all")));
-        if (RecipeCategoryConfig.autoCategories()) {
-            addCreativeTabs();
-        } else {
-            for (RecipeCategoryConfig.Entry category : RecipeCategoryConfig.all()) {
-                tabs.add(new ModRecipeTabButton(category.id, category.iconStack(), category.title()));
+        switch (RecipeCategoryConfig.mode()) {
+            case AUTO -> addAutoTabs(RecipeCategoryConfig.autoOrder());
+            case CUSTOM -> {
+                for (RecipeCategoryConfig.Entry category : RecipeCategoryConfig.all()) {
+                    tabs.add(customTab(category));
+                }
             }
+            case HYBRID -> addHybridTabs();
         }
         if (selectedCategory != null && tabs.stream().noneMatch(t -> selectedCategory.equals(t.categoryId()))) {
             selectedCategory = null;
@@ -319,9 +321,52 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         }
     }
 
-    private void addCreativeTabs() {
-        if (minecraft.player == null || minecraft.level == null) {
+    private void addHybridTabs() {
+        Map<String, Set<Item>> groups = creativeGroups();
+        for (String id : RecipeCategoryConfig.hybridOrder()) {
+            String group = RecipeCategoryConfig.autoGroup(id);
+            if (group != null) {
+                if (groups != null) {
+                    addAutoTab(group, groups);
+                }
+            } else {
+                RecipeCategoryConfig.Entry category = RecipeCategoryConfig.find(id);
+                if (category != null) {
+                    tabs.add(customTab(category));
+                }
+            }
+        }
+    }
+
+    private void addAutoTabs(List<String> order) {
+        Map<String, Set<Item>> groups = creativeGroups();
+        if (groups == null) {
             return;
+        }
+        for (String group : order) {
+            addAutoTab(group, groups);
+        }
+    }
+
+    private void addAutoTab(String group, Map<String, Set<Item>> groups) {
+        Set<Item> items = groups.get(group);
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        String id = RecipeCategoryConfig.autoTabId(group);
+        creativeItems.put(id, items);
+        ItemStack[] icons = RecipeCategoryConfig.autoIcons(group);
+        tabs.add(new ModRecipeTabButton(id, icons[0], icons.length > 1 ? icons[1] : ItemStack.EMPTY,
+                RecipeCategoryConfig.autoTitle(group)));
+    }
+
+    private static ModRecipeTabButton customTab(RecipeCategoryConfig.Entry category) {
+        return new ModRecipeTabButton(category.id, category.iconStack(), category.title());
+    }
+
+    private Map<String, Set<Item>> creativeGroups() {
+        if (minecraft.player == null || minecraft.level == null) {
+            return null;
         }
         CreativeModeTabs.tryRebuildTabContents(minecraft.player.connection.enabledFeatures(),
                 minecraft.options.operatorItemsTab().get() && minecraft.player.canUseGameMasterBlocks(),
@@ -352,19 +397,12 @@ public class ModRecipeBookComponent implements PlaceRecipe<Ingredient> {
         java.util.Comparator<Item> order = java.util.Comparator
                 .<Item>comparingInt(item -> rank.getOrDefault(item, Integer.MAX_VALUE))
                 .thenComparing(item -> BuiltInRegistries.ITEM.getKey(item));
-        for (String group : RecipeCategoryConfig.autoOrder()) {
-            List<Item> list = byGroup.get(group);
-            if (list == null) {
-                continue;
-            }
-            list.sort(order);
-            Set<Item> items = new LinkedHashSet<>(list);
-            String id = "auto:" + group;
-            creativeItems.put(id, items);
-            ItemStack[] icons = RecipeCategoryConfig.autoIcons(group);
-            tabs.add(new ModRecipeTabButton(id, icons[0], icons.length > 1 ? icons[1] : ItemStack.EMPTY,
-                    RecipeCategoryConfig.autoTitle(group)));
+        Map<String, Set<Item>> groups = new HashMap<>();
+        for (Map.Entry<String, List<Item>> entry : byGroup.entrySet()) {
+            entry.getValue().sort(order);
+            groups.put(entry.getKey(), new LinkedHashSet<>(entry.getValue()));
         }
+        return groups;
     }
 
     // ponytail: guesses a group from item properties; custom categories are the precise option.

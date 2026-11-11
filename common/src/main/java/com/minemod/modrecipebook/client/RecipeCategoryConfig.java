@@ -31,12 +31,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 public final class RecipeCategoryConfig {
+    public enum Mode {
+        AUTO, CUSTOM, HYBRID
+    }
+
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static Path file() {
         return Platform.configDir().resolve("modrecipebook-categories.json");
@@ -44,9 +49,10 @@ public final class RecipeCategoryConfig {
     private static final List<Entry> CATEGORIES = new ArrayList<>();
     private static final Set<Item> BROKEN_ICONS = Collections.newSetFromMap(new IdentityHashMap<>());
     private static boolean hideJei = true;
-    private static boolean autoCategories = true;
+    private static Mode mode = Mode.AUTO;
     private static final List<String> AUTO_DEFAULT = List.of("blocks", "functional", "gear", "food", "ingredients", "redstone");
     private static final List<String> AUTO_ORDER = new ArrayList<>(AUTO_DEFAULT);
+    private static final List<String> HYBRID_ORDER = new ArrayList<>();
     private static boolean requireAllIngredients = true;
     private static boolean requireCraftingMethod = true;
     private static int unlockRules;
@@ -77,17 +83,33 @@ public final class RecipeCategoryConfig {
         save();
     }
 
-    public static boolean autoCategories() {
-        return autoCategories;
+    public static Mode mode() {
+        return mode;
     }
 
-    public static void setAutoCategories(boolean value) {
-        autoCategories = value;
+    public static void setMode(Mode value) {
+        mode = value;
         save();
+    }
+
+    public static String autoTabId(String group) {
+        return "auto:" + group;
+    }
+
+    public static String autoGroup(String id) {
+        if (id == null || !id.startsWith("auto:")) {
+            return null;
+        }
+        String group = id.substring("auto:".length());
+        return AUTO_DEFAULT.contains(group) ? group : null;
     }
 
     public static List<String> autoOrder() {
         return AUTO_ORDER;
+    }
+
+    public static List<String> hybridOrder() {
+        return HYBRID_ORDER;
     }
 
     public static void moveAuto(String group, int delta) {
@@ -97,6 +119,15 @@ public final class RecipeCategoryConfig {
             return;
         }
         Collections.swap(AUTO_ORDER, from, to);
+        save();
+    }
+
+    public static void moveHybrid(int index, int delta) {
+        int to = index + delta;
+        if (index < 0 || to < 0 || index >= HYBRID_ORDER.size() || to >= HYBRID_ORDER.size()) {
+            return;
+        }
+        Collections.swap(HYBRID_ORDER, index, to);
         save();
     }
 
@@ -156,9 +187,10 @@ public final class RecipeCategoryConfig {
     public static void load() {
         CATEGORIES.clear();
         hideJei = true;
-        autoCategories = true;
+        mode = Mode.AUTO;
         AUTO_ORDER.clear();
         AUTO_ORDER.addAll(AUTO_DEFAULT);
+        HYBRID_ORDER.clear();
         requireAllIngredients = true;
         requireCraftingMethod = true;
         unlockRules = 0;
@@ -228,12 +260,22 @@ public final class RecipeCategoryConfig {
                 if (migrate) {
                     ensureMinecraftCategory();
                 }
-                if (data.autoCategories != null) {
-                    autoCategories = data.autoCategories;
+                if (data.categoryMode != null) {
+                    try {
+                        mode = Mode.valueOf(data.categoryMode);
+                    } catch (IllegalArgumentException ignored) {
+                        mode = Mode.AUTO;
+                    }
+                } else if (data.autoCategories != null) {
+                    mode = data.autoCategories ? Mode.AUTO : Mode.CUSTOM;
                 } else {
-                    autoCategories = untouchedCategories();
+                    mode = untouchedCategories() ? Mode.AUTO : Mode.CUSTOM;
                 }
-                if (migrate || data.autoCategories == null) {
+                if (data.hybridOrder != null) {
+                    HYBRID_ORDER.addAll(data.hybridOrder);
+                }
+                syncHybrid();
+                if (migrate || data.autoCategories == null || data.categoryMode == null || data.hybridOrder == null) {
                     save();
                 }
             }
@@ -249,10 +291,13 @@ public final class RecipeCategoryConfig {
         try {
             Files.createDirectories(file().getParent());
             try (Writer writer = Files.newBufferedWriter(file())) {
+                syncHybrid();
                 FileData data = new FileData();
                 data.hideJei = hideJei;
-                data.autoCategories = autoCategories;
+                data.categoryMode = mode.name();
+                data.autoCategories = mode == Mode.AUTO;
                 data.autoOrder = AUTO_ORDER;
+                data.hybridOrder = HYBRID_ORDER;
                 data.requireAllIngredients = requireAllIngredients;
                 data.requireCraftingMethod = requireCraftingMethod;
                 data.unlockRules = unlockRules;
@@ -345,6 +390,27 @@ public final class RecipeCategoryConfig {
         }
     }
 
+    private static void syncHybrid() {
+        Set<String> wanted = new LinkedHashSet<>();
+        for (String group : AUTO_ORDER) {
+            wanted.add(autoTabId(group));
+        }
+        for (Entry entry : CATEGORIES) {
+            if (entry.id != null && !entry.id.isBlank()) {
+                wanted.add(entry.id);
+            }
+        }
+        List<String> next = new ArrayList<>();
+        for (String id : HYBRID_ORDER) {
+            if (id != null && wanted.remove(id)) {
+                next.add(id);
+            }
+        }
+        next.addAll(wanted);
+        HYBRID_ORDER.clear();
+        HYBRID_ORDER.addAll(next);
+    }
+
     private static boolean untouchedCategories() {
         if (CATEGORIES.size() != 1) {
             return false;
@@ -372,8 +438,10 @@ public final class RecipeCategoryConfig {
 
     private static class FileData {
         Boolean hideJei;
+        String categoryMode;
         Boolean autoCategories;
         List<String> autoOrder;
+        List<String> hybridOrder;
         Boolean requireAllIngredients;
         Boolean requireCraftingMethod;
         Integer unlockRules;

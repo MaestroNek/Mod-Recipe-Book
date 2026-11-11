@@ -19,6 +19,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 import java.util.List;
+import java.util.function.IntConsumer;
 
 public class CategorySettingsScreen extends Screen {
     private static final int ROW = 28;
@@ -141,20 +142,24 @@ public class CategorySettingsScreen extends Screen {
                     RecipeCategoryConfig.setRequireCraftingMethod(value);
                     rethinkRecipes();
                 }));
-        boolean auto = RecipeCategoryConfig.autoCategories();
-        addRenderableWidget(CycleButton.booleanBuilder(
-                        Component.translatable("gui.modrecipebook.config.categories.auto"),
-                        Component.translatable("gui.modrecipebook.config.categories.custom"))
-                .withInitialValue(auto)
+        RecipeCategoryConfig.Mode mode = RecipeCategoryConfig.mode();
+        addRenderableWidget(CycleButton.<RecipeCategoryConfig.Mode>builder(value -> Component.translatable(switch (value) {
+                        case AUTO -> "gui.modrecipebook.config.categories.auto";
+                        case CUSTOM -> "gui.modrecipebook.config.categories.custom";
+                        case HYBRID -> "gui.modrecipebook.config.categories.hybrid";
+                }))
+                .withValues(RecipeCategoryConfig.Mode.AUTO, RecipeCategoryConfig.Mode.CUSTOM, RecipeCategoryConfig.Mode.HYBRID)
+                .withInitialValue(mode)
                 .withTooltip(value -> Tooltip.create(Component.translatable("gui.modrecipebook.config.categories.tooltip")))
                 .create(panelLeft(), ADD_BTN_Y, 150, 20, Component.translatable("gui.modrecipebook.config.categories"),
                         (button, value) -> {
-                            RecipeCategoryConfig.setAutoCategories(value);
+                            RecipeCategoryConfig.setMode(value);
                             listScroll = 0;
                             rebuildWidgets();
                         }));
         List<RecipeCategoryConfig.Entry> categories = RecipeCategoryConfig.all();
         List<String> autoOrder = RecipeCategoryConfig.autoOrder();
+        List<String> hybrid = RecipeCategoryConfig.hybridOrder();
         int shown = Math.min(visibleRows, Math.max(0, rowCount() - listScroll));
         for (int i = 0; i < shown; i++) {
             int index = listScroll + i;
@@ -162,49 +167,29 @@ public class CategorySettingsScreen extends Screen {
                 continue;
             }
             int catIndex = index - 1;
-            if (auto) {
-                String group = autoOrder.get(catIndex);
-                addRenderableWidget(new SortArrows(listLeft - ARROW_SLOT, listTop + i * ROW + (ROW_BTN - ARROW_H) / 2,
-                        catIndex > 0, catIndex < autoOrder.size() - 1, () -> {
-                    RecipeCategoryConfig.moveAuto(group, -1);
-                    rebuildWidgets();
-                }, () -> {
-                    RecipeCategoryConfig.moveAuto(group, 1);
-                    rebuildWidgets();
-                }));
-                continue;
-            }
-            String id = categories.get(catIndex).id;
             int row = listTop + i * ROW;
-            boolean canUp = catIndex > 0;
-            boolean canDown = catIndex < categories.size() - 1;
-            if (canUp || canDown) {
-                addRenderableWidget(new SortArrows(listLeft - ARROW_SLOT, row + (ROW_BTN - ARROW_H) / 2, canUp, canDown, () -> {
-                    RecipeCategoryConfig.move(id, -1);
-                    rebuildWidgets();
-                }, () -> {
-                    RecipeCategoryConfig.move(id, 1);
-                    rebuildWidgets();
-                }));
+            switch (mode) {
+                case AUTO -> {
+                    String group = autoOrder.get(catIndex);
+                    addRowButtons(row, catIndex, autoOrder.size(), delta -> RecipeCategoryConfig.moveAuto(group, delta), null);
+                }
+                case CUSTOM -> {
+                    String id = categories.get(catIndex).id;
+                    addRowButtons(row, catIndex, categories.size(), delta -> RecipeCategoryConfig.move(id, delta), id);
+                }
+                case HYBRID -> {
+                    String id = hybrid.get(catIndex);
+                    String editId = RecipeCategoryConfig.autoGroup(id) == null ? id : null;
+                    addRowButtons(row, catIndex, hybrid.size(), delta -> RecipeCategoryConfig.moveHybrid(catIndex, delta), editId);
+                }
             }
-            addRenderableWidget(Button.builder(Component.translatable("gui.modrecipebook.config.edit"),
-                    b -> minecraft.setScreen(new CategoryEditScreen(this, RecipeCategoryConfig.find(id))))
-                    .bounds(listLeft + 200, row, 48, 20)
-                    .build());
-            addRenderableWidget(Button.builder(Component.translatable("gui.modrecipebook.config.delete"),
-                    b -> {
-                        RecipeCategoryConfig.delete(id);
-                        rebuildWidgets();
-                    })
-                    .bounds(listLeft + 252, row, 48, 20)
-                    .build());
         }
         Component worldLabel = Component.translatable("gui.modrecipebook.config.debug");
         worldButtonWidth = font.width(worldLabel) + 12;
         addRenderableWidget(Button.builder(worldLabel, b -> minecraft.setScreen(new DebugSettingsScreen(this)))
                 .bounds(width - 8 - worldButtonWidth, 6, worldButtonWidth, 20)
                 .build());
-        if (!auto) {
+        if (mode != RecipeCategoryConfig.Mode.AUTO) {
             addRenderableWidget(Button.builder(Component.translatable("gui.modrecipebook.config.add"), b ->
                     minecraft.setScreen(new CategoryEditScreen(this, null)))
                     .bounds(panelRight() - 150, ADD_BTN_Y, 150, 20)
@@ -241,16 +226,23 @@ public class CategorySettingsScreen extends Screen {
                         listLeft + 200, y + 4, 0x808080, false);
                 continue;
             }
-            if (RecipeCategoryConfig.autoCategories()) {
-                String group = RecipeCategoryConfig.autoOrder().get(index - 1);
-                graphics.renderItem(RecipeCategoryConfig.autoIcons(group)[0], listLeft + ICON_X, y);
-                graphics.drawString(font, RecipeCategoryConfig.autoTitle(group), listLeft + TEXT_X, y + 4, 0xFFFFFF, false);
-                continue;
+            int catIndex = index - 1;
+            switch (RecipeCategoryConfig.mode()) {
+                case AUTO -> drawAutoRow(graphics, RecipeCategoryConfig.autoOrder().get(catIndex), y);
+                case CUSTOM -> drawCustomRow(graphics, categories.get(catIndex), y);
+                case HYBRID -> {
+                    String id = RecipeCategoryConfig.hybridOrder().get(catIndex);
+                    String group = RecipeCategoryConfig.autoGroup(id);
+                    if (group != null) {
+                        drawAutoRow(graphics, group, y);
+                    } else {
+                        RecipeCategoryConfig.Entry entry = RecipeCategoryConfig.find(id);
+                        if (entry != null) {
+                            drawCustomRow(graphics, entry, y);
+                        }
+                    }
+                }
             }
-            RecipeCategoryConfig.Entry entry = categories.get(index - 1);
-            RecipeCategoryConfig.renderItem(graphics, entry.iconStack(), listLeft + ICON_X, y);
-            graphics.drawString(font, font.plainSubstrByWidth(entry.title().getString(), 145),
-                    listLeft + TEXT_X, y + 4, 0xFFFFFF, false);
         }
         renderScrollbar(graphics);
     }
@@ -304,9 +296,52 @@ public class CategorySettingsScreen extends Screen {
         listScroll = Math.min(listScroll, maxScroll());
     }
 
+    private void addRowButtons(int row, int index, int count, IntConsumer move, String editId) {
+        boolean canUp = index > 0;
+        boolean canDown = index < count - 1;
+        if (canUp || canDown) {
+            addRenderableWidget(new SortArrows(listLeft - ARROW_SLOT, row + (ROW_BTN - ARROW_H) / 2, canUp, canDown, () -> {
+                move.accept(-1);
+                rebuildWidgets();
+            }, () -> {
+                move.accept(1);
+                rebuildWidgets();
+            }));
+        }
+        if (editId == null) {
+            return;
+        }
+        addRenderableWidget(Button.builder(Component.translatable("gui.modrecipebook.config.edit"),
+                b -> minecraft.setScreen(new CategoryEditScreen(this, RecipeCategoryConfig.find(editId))))
+                .bounds(listLeft + 200, row, 48, 20)
+                .build());
+        addRenderableWidget(Button.builder(Component.translatable("gui.modrecipebook.config.delete"),
+                b -> {
+                    RecipeCategoryConfig.delete(editId);
+                    rebuildWidgets();
+                })
+                .bounds(listLeft + 252, row, 48, 20)
+                .build());
+    }
+
+    private void drawAutoRow(GuiGraphics graphics, String group, int y) {
+        graphics.renderItem(RecipeCategoryConfig.autoIcons(group)[0], listLeft + ICON_X, y);
+        graphics.drawString(font, RecipeCategoryConfig.autoTitle(group), listLeft + TEXT_X, y + 4, 0xFFFFFF, false);
+    }
+
+    private void drawCustomRow(GuiGraphics graphics, RecipeCategoryConfig.Entry entry, int y) {
+        RecipeCategoryConfig.renderItem(graphics, entry.iconStack(), listLeft + ICON_X, y);
+        graphics.drawString(font, font.plainSubstrByWidth(entry.title().getString(), 145),
+                listLeft + TEXT_X, y + 4, 0xFFFFFF, false);
+    }
+
     private int rowCount() {
-        return 1 + (RecipeCategoryConfig.autoCategories()
-                ? RecipeCategoryConfig.autoOrder().size() : RecipeCategoryConfig.all().size());
+        int rows = switch (RecipeCategoryConfig.mode()) {
+            case AUTO -> RecipeCategoryConfig.autoOrder().size();
+            case CUSTOM -> RecipeCategoryConfig.all().size();
+            case HYBRID -> RecipeCategoryConfig.hybridOrder().size();
+        };
+        return 1 + rows;
     }
 
     private int maxScroll() {
