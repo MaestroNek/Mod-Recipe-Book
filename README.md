@@ -14,8 +14,9 @@ Recipe layouts come from [JEI](https://github.com/mezz/JustEnoughItems).
 
 ### Categories your way
 
-- **Auto categories.** Every recipe from every mod is sorted into six clear tabs: Blocks, Functional Blocks, Equipment & Utilities, Food & Drinks, Ingredients, and Redstone. No setup needed, and you can reorder the tabs.
-- **Custom categories.** Want more control? Build your own tabs from any mix of mods and switch to them in the settings.
+- **Auto categories.** Every recipe from every mod is sorted into six clear tabs: Blocks, Functional Blocks, Equipment & Utilities, Food & Drinks, Ingredients, and Redstone.
+- **Custom categories.** Your own tabs, built from any mix of mods.
+- **Hybrid categories.** Ready-made tabs and your own tabs together.
 
 ### A recipe book that does much more
 
